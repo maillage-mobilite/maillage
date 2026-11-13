@@ -1,11 +1,12 @@
 // Carte MapLibre : fond OpenStreetMap (OpenFreeMap), tracés des lignes, pôles d'arrêt, position, itinéraire.
 // En production : tuiles PMTiles auto-hébergées (ADR-005). Ici, OpenFreeMap pour aller vite.
-import { Map as MLMap, LngLatBounds, type GeoJSONSource, type LngLatBoundsLike, type MapLayerMouseEvent } from 'maplibre-gl'
+import { Map as MLMap, LngLatBounds, type GeoJSONSource, type LngLatBoundsLike, type MapMouseEvent } from 'maplibre-gl'
 import type * as GeoJSON from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { useEffect, useRef } from 'preact/hooks'
-import type { Network } from './net'
+import { useEffect, useRef, useState } from 'preact/hooks'
+import { stationLabel, type Kind, type Network } from './net'
 import type { Journey } from './router'
+import { Icon, Pill } from './ui'
 
 export interface MapProps {
   net: Network
@@ -15,6 +16,34 @@ export interface MapProps {
   focus: { lat: number; lon: number; zoom?: number; key: number } | null
   padding: { top: number; bottom: number; left: number }
   onPlace: (i: number) => void
+  onRoute: (i: number) => void
+  /** Types de lignes visibles sur la carte, et 'gares' pour les gares SNCF. */
+  kinds: (Kind | 'gares')[]
+}
+
+interface HoverItem { route: number; from: string; to: string; both?: boolean }
+interface Hover { x: number; y: number; items: HoverItem[]; pinned: boolean; station?: number }
+
+/** Lignes sous le pointeur (tolérance de quelques pixels : les tracés sont fins). */
+function linesAt(m: MLMap, x: number, y: number, tol = 7): HoverItem[] {
+  const feats = m.queryRenderedFeatures([[x - tol, y - tol], [x + tol, y + tol]], { layers: ['lines'] })
+  const seen = new Set<string>()
+  const out: HoverItem[] = []
+  for (const f of feats) {
+    const p = f.properties as any
+    const key = `${p.route}|${p.from ?? ''}|${p.to ?? ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ route: p.route, from: p.from ?? '', to: p.to ?? '' })
+  }
+  // un aller et son retour sur la même ligne → une seule entrée « A ⇄ B »
+  const merged: HoverItem[] = []
+  for (const it of out) {
+    const rev = merged.find(m => m.route === it.route && m.from === it.to && m.to === it.from)
+    if (rev) rev.both = true
+    else merged.push({ ...it })
+  }
+  return merged.sort((a, b) => a.route - b.route).slice(0, 5)
 }
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
@@ -26,6 +55,9 @@ export function MapView(props: MapProps) {
   const pending = useRef<(() => void)[]>([])
   const onPlace = useRef(props.onPlace)
   onPlace.current = props.onPlace
+  const [hover, setHover] = useState<Hover | null>(null)
+  const hoverRef = useRef<Hover | null>(null)
+  hoverRef.current = hover
 
   const whenReady = (fn: () => void) => (ready.current ? fn() : pending.current.push(fn))
 
@@ -54,9 +86,16 @@ export function MapView(props: MapProps) {
           type: 'FeatureCollection',
           features: net.places.filter(p => p.routes.length).map(p => ({
             type: 'Feature',
-            properties: { i: p.i, name: p.name, core: p.feeds.some(f => f === 'urbain' || f === 'tad') ? 1 : 0, n: p.routes.length },
+            properties: { i: p.i, name: p.name, core: p.feeds.some(f => f === 'urbain' || f === 'tad') ? 1 : 0, n: p.routes.length, feeds: p.feeds.join(',') },
             geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
           })),
+        },
+      })
+      m.addSource('stations', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: net.stations.map(st => ({ type: 'Feature', properties: { i: st.i, label: stationLabel(st.name) }, geometry: { type: 'Point', coordinates: [st.lon, st.lat] } })),
         },
       })
       m.addSource('journey', { type: 'geojson', data: EMPTY })
@@ -71,6 +110,9 @@ export function MapView(props: MapProps) {
           'line-opacity': ['match', ['get', 'kind'], 'scolaire', 0.3, 'region', 0.35, 0.9],
           'line-dasharray': ['match', ['get', 'kind'], 'tad', ['literal', [1, 1.5]], ['literal', [1, 0]]],
         } })
+      m.addLayer({ id: 'lines-hover', type: 'line', source: 'lines', filter: ['==', ['get', 'route'], -1],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 15, 8], 'line-opacity': 1 } })
       m.addLayer({ id: 'places', type: 'circle', source: 'places', minzoom: 11,
         filter: ['any', ['>=', ['zoom'], 13.5], ['==', ['get', 'core'], 1]],
         paint: {
@@ -82,6 +124,13 @@ export function MapView(props: MapProps) {
       m.addLayer({ id: 'places-label', type: 'symbol', source: 'places', minzoom: 15,
         layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 12, 'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-optional': true },
         paint: { 'text-color': '#16302f', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } })
+      m.addLayer({ id: 'stations-halo', type: 'circle', source: 'stations',
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 6, 14, 12], 'circle-color': '#ffffff', 'circle-opacity': 0.9 } })
+      m.addLayer({ id: 'stations', type: 'circle', source: 'stations',
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 14, 8], 'circle-color': '#1e3a8a', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } })
+      m.addLayer({ id: 'stations-label', type: 'symbol', source: 'stations', minzoom: 9.5,
+        layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-optional': true },
+        paint: { 'text-color': '#1e3a8a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.8 } })
       m.addLayer({ id: 'journey-walk', type: 'line', source: 'journey', filter: ['==', ['get', 'type'], 'walk'],
         layout: { 'line-cap': 'round' }, paint: { 'line-color': '#4b5563', 'line-width': 4, 'line-dasharray': [0.1, 2] } })
       m.addLayer({ id: 'journey-ride-casing', type: 'line', source: 'journey', filter: ['==', ['get', 'type'], 'ride'],
@@ -94,12 +143,35 @@ export function MapView(props: MapProps) {
       m.addLayer({ id: 'user', type: 'circle', source: 'user',
         paint: { 'circle-radius': 7, 'circle-color': ['case', ['get', 'simulated'], '#9ca3af', '#2563eb'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 } })
 
-      m.on('click', 'places', (e: MapLayerMouseEvent) => {
-        const f = e.features?.[0]
-        if (f) onPlace.current(f.properties!.i as number)
+      // Clic / toucher : un arrêt est prioritaire ; sinon, une ligne ouvre (et épingle) l'info-bulle.
+      m.on('click', (e: MapMouseEvent) => {
+        const { x, y } = e.point
+        const st = m.getLayer('stations') && m.getLayoutProperty('stations', 'visibility') !== 'none'
+          ? m.queryRenderedFeatures([[x - 9, y - 9], [x + 9, y + 9]], { layers: ['stations'] })[0] : undefined
+        if (st) { setHover({ x, y, items: [], pinned: true, station: st.properties!.i as number }); return }
+        const place = m.queryRenderedFeatures([[x - 6, y - 6], [x + 6, y + 6]], { layers: ['places'] })[0]
+        if (place) { setHover(null); onPlace.current(place.properties!.i as number); return }
+        const items = linesAt(m, x, y, 10)
+        setHover(items.length ? { x, y, items, pinned: true } : null)
       })
-      m.on('mouseenter', 'places', () => { m.getCanvas().style.cursor = 'pointer' })
-      m.on('mouseleave', 'places', () => { m.getCanvas().style.cursor = '' })
+      // Survol (souris) : info-bulle non épinglée, mise en évidence des lignes concernées.
+      let raf = 0
+      m.on('mousemove', (e: MapMouseEvent) => {
+        cancelAnimationFrame(raf)
+        raf = requestAnimationFrame(() => {
+          if (hoverRef.current?.pinned) return
+          const { x, y } = e.point
+          const st = m.getLayoutProperty('stations', 'visibility') !== 'none'
+            ? m.queryRenderedFeatures([[x - 8, y - 8], [x + 8, y + 8]], { layers: ['stations'] })[0] : undefined
+          if (st) { m.getCanvas().style.cursor = 'pointer'; setHover({ x, y, items: [], pinned: false, station: st.properties!.i as number }); return }
+          const onPlaceHit = m.queryRenderedFeatures([[x - 5, y - 5], [x + 5, y + 5]], { layers: ['places'] }).length > 0
+          const items = onPlaceHit ? [] : linesAt(m, x, y)
+          m.getCanvas().style.cursor = onPlaceHit || items.length ? 'pointer' : ''
+          setHover(items.length ? { x, y, items, pinned: false } : null)
+        })
+      })
+      m.getCanvas().addEventListener('mouseleave', () => { if (!hoverRef.current?.pinned) setHover(null) })
+      m.on('movestart', () => { if (!hoverRef.current?.pinned) setHover(null) })
       ready.current = true
       pending.current.splice(0).forEach(fn => fn())
     })
@@ -146,6 +218,33 @@ export function MapView(props: MapProps) {
     })
   }, [props.highlightRoute, props.journey])
 
+  // filtre par type de ligne (la ligne mise en évidence reste toujours visible)
+  useEffect(() => {
+    whenReady(() => {
+      const m = map.current!
+      const r = props.highlightRoute ?? -1
+      const lineKinds = props.kinds.filter((k): k is Kind => k !== 'gares')
+      const kinds = ['literal', lineKinds] as any
+      const vis = props.kinds.includes('gares') ? 'visible' : 'none'
+      for (const l of ['stations-halo', 'stations', 'stations-label']) m.setLayoutProperty(l, 'visibility', vis)
+      const lineFilter: any = ['any', ['in', ['get', 'kind'], kinds], ['==', ['get', 'route'], r]]
+      m.setFilter('lines', lineFilter)
+      m.setFilter('lines-casing', lineFilter)
+      const served: any = lineKinds.length ? ['any', ...lineKinds.map(k => ['in', k, ['get', 'feeds']])] : false
+      m.setFilter('places', ['all', ['any', ['>=', ['zoom'], 13.5], ['==', ['get', 'core'], 1]], served])
+      m.setFilter('places-label', served)
+      setHover(null)
+    })
+  }, [props.kinds.join(','), props.highlightRoute])
+
+  // lignes survolées mises en évidence
+  useEffect(() => {
+    whenReady(() => {
+      const routes = hover ? [...new Set(hover.items.map(i => i.route))] : []
+      map.current!.setFilter('lines-hover', ['in', ['get', 'route'], ['literal', routes.length ? routes : [-1]]])
+    })
+  }, [hover])
+
   // itinéraire
   useEffect(() => {
     whenReady(() => {
@@ -183,11 +282,65 @@ export function MapView(props: MapProps) {
   return (
     <>
       <div ref={el} class="map" role="region" aria-label="Carte du réseau" />
+      {hover && <LineTooltip net={props.net} hover={hover} onRoute={r => { setHover(null); props.onRoute(r) }} onPlace={pl => { setHover(null); props.onPlace(pl) }} onClose={() => setHover(null)} />}
       <div class="map-credits">
         © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">contributeurs OpenStreetMap</a> ·{' '}
         <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> ·{' '}
         <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>
       </div>
     </>
+  )
+}
+
+function LineTooltip({ net, hover, onRoute, onPlace, onClose }: { net: Network; hover: Hover; onRoute: (r: number) => void; onPlace: (pl: number) => void; onClose: () => void }) {
+  const w = 300
+  const left = Math.max(8, Math.min(hover.x + 14, window.innerWidth - w - 8))
+  const below = hover.y < window.innerHeight * 0.4
+  const style = { left: `${left}px`, width: `${w}px`, ...(below ? { top: `${hover.y + 14}px` } : { bottom: `${window.innerHeight - hover.y + 14}px` }) }
+  return (
+    <div class={`line-tip${hover.pinned ? ' pinned' : ''}`} style={style} role={hover.pinned ? 'dialog' : 'tooltip'} aria-label="Lignes à cet endroit">
+      {hover.pinned && <button class="tip-close" onClick={onClose} aria-label="Fermer"><Icon name="close" size={16} /></button>}
+      {hover.station != null && (() => {
+        const st = net.stations[hover.station]
+        return (
+          <>
+            <div class="tip-station">
+              <Icon name="train" size={22} />
+              <span class="tip-text"><strong>{stationLabel(st.name)}</strong><span class="tip-od">Gare SNCF · correspondance avec :</span></span>
+            </div>
+            {st.links.map(([pl, m]) => {
+              const body = (
+                <>
+                  <span class="tip-pills">{net.places[pl].routes.slice(0, 6).map(r => <Pill key={r} route={net.routes[r]} small />)}</span>
+                  <span class="tip-text"><span class="tip-od">arrêt {net.places[pl].name} · {m < 40 ? 'sur place' : `${m} m`}</span></span>
+                </>
+              )
+              return hover.pinned
+                ? <button key={pl} class="tip-row" onClick={() => onPlace(pl)}>{body}</button>
+                : <div key={pl} class="tip-row">{body}</div>
+            })}
+            {!hover.pinned && <div class="tip-hint">Cliquez pour voir les départs en correspondance</div>}
+          </>
+        )
+      })()}
+      {hover.items.map(it => {
+        const r = net.routes[it.route]
+        const body = (
+          <>
+            <Pill route={r} small />
+            <span class="tip-text">
+              <strong>{r.long}</strong>
+              <span class="tip-od">{it.from && it.to
+                ? <>{it.from} <span aria-hidden="true">{it.both ? '⇄' : '→'}</span><span class="sr-only">{it.both ? ' et retour depuis ' : ' vers '}</span> {it.to}</>
+                : r.agency}</span>
+            </span>
+          </>
+        )
+        return hover.pinned
+          ? <button key={`${it.route}${it.from}${it.to}`} class="tip-row" onClick={() => onRoute(it.route)}>{body}</button>
+          : <div key={`${it.route}${it.from}${it.to}`} class="tip-row">{body}</div>
+      })}
+      {!hover.pinned && hover.items.length > 0 && <div class="tip-hint">Cliquez pour choisir une ligne et ouvrir sa fiche</div>}
+    </div>
   )
 }

@@ -6,6 +6,19 @@
   "bbox": [4.50, 45.12, 4.90, 45.38],
   "default_place": { "name": "Annonay - Gare routière", "lat": 45.2397, "lon": 4.6722 },
   "window_days": 60,
+  "snap_to_roads": {
+    "enabled": true,
+    "osrm_url": "https://router.project-osrm.org",
+    "note": "Serveur de démonstration OSRM (usage léger). En production : instance OSRM/Valhalla auto-hébergée."
+  },
+  "fares_file": "coqueligo.fares.json",
+  "rail_stations": {
+    "name": "Gares de voyageurs (SNCF Open Data)",
+    "url": "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/gares-de-voyageurs/exports/json",
+    "page": "https://ressources.data.sncf.com/explore/dataset/gares-de-voyageurs/",
+    "licence": "ODbL",
+    "max_walk_m": 500
+  },
   "feeds": [
     {
       "id": "urbain", "kind": "urbain", "name": "Réseau urbain CoqueliGO",

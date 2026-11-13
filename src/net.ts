@@ -5,7 +5,9 @@ export type Kind = 'urbain' | 'scolaire' | 'tad' | 'region'
 
 export interface Route { i: number; short: string; long: string; color: string; text: string; kind: Kind; agency: string }
 export interface Stop { i: number; name: string; lat: number; lon: number; place: number; feed: Kind }
-export interface Place { i: number; name: string; lat: number; lon: number; feeds: Kind[]; stops: number[]; routes: number[] }
+export interface Place { i: number; name: string; lat: number; lon: number; feeds: Kind[]; stops: number[]; routes: number[]; /** gares à distance de marche : [gare, mètres] */ stations: [number, number][] }
+/** Gare ferroviaire en correspondance avec au moins un arrêt du réseau. */
+export interface Station { i: number; name: string; lat: number; lon: number; uic: string; segment: string; /** pôles reliés : [pôle, mètres] */ links: [number, number][] }
 export interface Trip { i: number; route: number; service: number; headsign: string; dir: number; stops: number[]; arr: number[]; dep: number[]; booking: boolean }
 export interface FeedReport {
   id: string; name: string; kind: Kind; licence: string; page: string; url: string; last_modified: string | null
@@ -21,6 +23,10 @@ export interface Network {
   windowDays: number
   feeds: FeedReport[]
   reconciliation: { stops: number; places: number; cross_feed_merges: number }
+  /** Recalage des tracés droits sur la voirie OSM (si effectué par le pipeline). */
+  shapes?: { snapped_features: number; kept_straight: number; service: string }
+  stations: Station[]
+  stationsSource: { name: string; licence: string; page: string } | null
   routes: Route[]
   stops: Stop[]
   places: Place[]
@@ -41,7 +47,9 @@ export async function loadNetwork(): Promise<Network> {
 export function parseNetwork(raw: any): Network {
   const routes: Route[] = raw.routes.map((r: any[], i: number) => ({ i, short: r[0], long: r[1], color: '#' + r[2], text: '#' + r[3], kind: r[4], agency: r[5] }))
   const stops: Stop[] = raw.stops.map((s: any[], i: number) => ({ i, name: s[0], lat: s[1], lon: s[2], place: s[3], feed: s[4] }))
-  const places: Place[] = raw.places.map((p: any[], i: number) => ({ i, name: p[0], lat: p[1], lon: p[2], feeds: p[3], stops: [], routes: [] }))
+  const places: Place[] = raw.places.map((p: any[], i: number) => ({ i, name: p[0], lat: p[1], lon: p[2], feeds: p[3], stops: [], routes: [], stations: [] }))
+  const stations: Station[] = (raw.stations ?? []).map((x: any[], i: number) => ({ i, name: x[0], lat: x[1], lon: x[2], uic: x[3], segment: x[4], links: x[5] }))
+  for (const st of stations) for (const [pl, m] of st.links) places[pl].stations.push([st.i, m])
   const trips: Trip[] = raw.trips.map((t: any[], i: number) => ({ i, route: t[0], service: t[1], headsign: t[2], dir: t[3], stops: t[4], arr: t[5], dep: t[6], booking: !!t[7] }))
   stops.forEach(s => places[s.place].stops.push(s.i))
   // Directions illisibles dans certains flux (numéros de course Oùra, codes TAD) → nom du terminus
@@ -58,7 +66,7 @@ export function parseNetwork(raw: any): Network {
   for (const [a, b, sec] of raw.footpaths) foot[a].push([b, sec])
   return {
     generatedAt: raw.generated_at, tenant: raw.tenant, booking: raw.booking, windowStart: raw.window_start, windowDays: raw.window_days,
-    feeds: raw.feeds, reconciliation: raw.reconciliation, routes, stops, places, trips, services: raw.services, foot, tripsAt,
+    feeds: raw.feeds, reconciliation: raw.reconciliation, shapes: raw.shapes, stations, stationsSource: raw.stations_source ?? null, routes, stops, places, trips, services: raw.services, foot, tripsAt,
   }
 }
 
@@ -179,3 +187,26 @@ export function nearestPlaces(net: Network, lat: number, lon: number, max = 6, r
 }
 
 export const KIND_LABEL: Record<Kind, string> = { urbain: 'Urbain', scolaire: 'Scolaire', tad: 'Transport à la demande', region: 'Car Région' }
+
+// ------------------------------------------------------------------ tarifs
+
+export interface Fare { category: 'ticket' | 'abonnement'; name: string; price_eur: number; transfers: boolean; conditions: string }
+export interface Fares { source: string; source_url: string; retrieved: string; note: string; fares: Fare[] }
+
+export async function loadFares(): Promise<Fares | null> {
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}data/fares.json`)
+    return res.ok ? await res.json() : null
+  } catch { return null }
+}
+
+export const fmtEur = (v: number) => (v === 0 ? 'Gratuit' : v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }))
+
+/** « Gare du Péage-de-Roussillon », « Gare de Valence », « Gare des Arcs », « Gare de la Part-Dieu »… */
+export function stationLabel(name: string): string {
+  if (/^Le /.test(name)) return `Gare du ${name.slice(3)}`
+  if (/^Les /.test(name)) return `Gare des ${name.slice(4)}`
+  if (/^La /.test(name)) return `Gare de la ${name.slice(3)}`
+  if (/^L'/.test(name)) return `Gare de l'${name.slice(2)}`
+  return `Gare de ${name}`
+}

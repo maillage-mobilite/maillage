@@ -1,5 +1,5 @@
 // Onglets Info trafic et Mes trajets (favoris, services, sources des données).
-import { Network } from '../net'
+import { Fares, Network, fmtEur } from '../net'
 import { Empty, Header, Icon, Pill } from '../ui'
 import type { Favorites } from '../store'
 
@@ -51,8 +51,8 @@ export function AlertsView({ net }: { net: Network }) {
   )
 }
 
-export function MeView({ net, fav, onPlace, onRoute, onSources }: {
-  net: Network; fav: Favorites; onPlace: (i: number) => void; onRoute: (i: number) => void; onSources: () => void
+export function MeView({ net, fav, onPlace, onRoute, onSources, onFares, hasFares }: {
+  net: Network; fav: Favorites; onPlace: (i: number) => void; onRoute: (i: number) => void; onSources: () => void; onFares: () => void; hasFares: boolean
 }) {
   const places = net.places.filter(p => fav.places.includes(p.name))
   const routes = net.routes.filter(r => fav.routes.includes(`${r.kind}:${r.short}`))
@@ -68,6 +68,7 @@ export function MeView({ net, fav, onPlace, onRoute, onSources }: {
       </section>
       <section>
         <h3 class="section-title">Services {net.tenant.name}</h3>
+        {hasFares && <button class="row-btn" onClick={onFares}><Icon name="ticket" size={18} /> Tarifs et abonnements</button>}
         <a class="row-btn" href={L.tickets} target="_blank" rel="noopener"><Icon name="ticket" size={18} /> Acheter un titre en ligne <Icon name="external" size={14} /></a>
         <a class="row-btn" href={L.open_payment} target="_blank" rel="noopener"><Icon name="ticket" size={18} /> Payer par carte bancaire à bord (Open Payment) <Icon name="external" size={14} /></a>
         <a class="row-btn" href={`tel:${L.phone.replace(/\s/g, '')}`}><Icon name="phone" size={18} /> Agence mobilité · {L.phone}</a>
@@ -95,6 +96,17 @@ export function SourcesView({ net, onBack }: { net: Network; onBack: () => void 
         <div><strong>{rc.places}</strong><span>pôles d'arrêt</span></div>
         <div><strong>{rc.cross_feed_merges}</strong><span>arrêts rapprochés entre flux</span></div>
       </div>
+      {net.shapes && (
+        <p class="small">
+          <strong>{net.shapes.snapped_features} tracés recalés sur la voirie.</strong> Les flux TAD et une partie des lignes scolaires et régionales
+          ne publient que des lignes droites d'arrêt à arrêt. Le pipeline les fait suivre les routes OpenStreetMap (moteur OSRM) :
+          le tracé exact reste à confirmer par le réseau.
+        </p>
+      )}
+      {net.stationsSource && (
+        <p class="small"><strong>{net.stations.length} gares en correspondance</strong> (à moins de 500 m d'un arrêt desservi) :{' '}
+          {net.stations.map(s => s.name).join(', ')}. Source : <a href={net.stationsSource.page} target="_blank" rel="noopener">{net.stationsSource.name}</a> ({net.stationsSource.licence}).</p>
+      )}
       {net.feeds.map(f => (
         <div class="card static feed" key={f.id}>
           <div class="card-head"><strong>{f.name}</strong><span class={`badge${f.days_left != null && f.days_left < 60 ? ' warn' : ''}`}>{f.days_left != null ? (f.days_left < 0 ? 'expiré' : `${f.days_left} j restants`) : '—'}</span></div>
@@ -115,7 +127,33 @@ export function SourcesView({ net, onBack }: { net: Network; onBack: () => void 
           <li>Accessibilité des arrêts : non renseignée.</li>
         </ul>
       </div>
-      <p class="small muted">Fond de carte © contributeurs OpenStreetMap (OpenFreeMap). Adresses : Base Adresse Nationale. Cars Région : agrégat Oùra (ODbL).</p>
+      <p class="small muted">Fond de carte © contributeurs OpenStreetMap (OpenFreeMap). Adresses : Base Adresse Nationale. Cars Région : agrégat Oùra (ODbL). Gares : SNCF Open Data (ODbL).</p>
+    </div>
+  )
+}
+
+export function FaresView({ net, fares, onBack }: { net: Network; fares: Fares; onBack: () => void }) {
+  const section = (cat: 'ticket' | 'abonnement', title: string) => (
+    <section>
+      <h3 class="section-title">{title}</h3>
+      <ul class="fares">
+        {fares.fares.filter(f => f.category === cat).sort((a, b) => a.price_eur - b.price_eur).map(f => (
+          <li key={f.name}>
+            <div class="fare-head"><strong>{f.name.charAt(0) + f.name.slice(1).toLowerCase().replace(/\btad\b/g, 'TAD')}</strong><span class="fare-price">{fmtEur(f.price_eur)}</span></div>
+            {f.conditions && <div class="small muted">{f.conditions}</div>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+  return (
+    <div class="sheet-body">
+      <Header title="Tarifs" onBack={onBack} sub={`Réseau ${net.tenant.name} · relevé le ${new Date(fares.retrieved + 'T12:00:00Z').toLocaleDateString('fr-FR')}`} />
+      <p class="notice"><Icon name="info" size={16} /> Paiement par carte bancaire sans contact possible directement à bord (Open Payment). Les cars Région ont leur propre tarification.</p>
+      {section('ticket', 'Tickets')}
+      {section('abonnement', 'Abonnements')}
+      <a class="btn primary block" href={net.tenant.links.tickets} target="_blank" rel="noopener">Acheter en ligne <Icon name="external" size={14} /></a>
+      <p class="small muted">Source : <a href={fares.source_url} target="_blank" rel="noopener">{fares.source}</a>. {fares.note} Les tarifs affichés sur coqueligo.fr (2025) ne sont plus à jour.</p>
     </div>
   )
 }

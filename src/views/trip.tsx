@@ -1,6 +1,6 @@
 // Onglet Itinéraire : saisie, résultats, détail, réservation TAD (démonstration).
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { Network, fmtHM, fmtDuration, fmtDay, addDays } from '../net'
+import { Fares, Network, fmtHM, fmtDuration, fmtDay, addDays, fmtEur } from '../net'
 import { Journey, Leg, PlanResult, Point, plan, tadBookable } from '../router'
 import { Suggestion, searchAddress, searchLocal } from '../search'
 import { Empty, Header, Icon, Pill, TheoNotice } from '../ui'
@@ -34,7 +34,7 @@ function PlaceInput({ net, label, value, placeholder, onPick, near, autoFocusKey
   useEffect(() => { if (autoFocusKey) input.current?.focus() }, [autoFocusKey])
   useEffect(() => {
     if (!open) return
-    const local = searchLocal(net, q, near).filter(s => s.kind === 'place')
+    const local = searchLocal(net, q, near).filter(s => s.kind === 'place' || s.kind === 'station')
     setSugg(local)
     const t = setTimeout(async () => {
       const addr = await searchAddress(q, near)
@@ -59,7 +59,7 @@ function PlaceInput({ net, label, value, placeholder, onPick, near, autoFocusKey
           {allowMyPos && <li><button onMouseDown={e => e.preventDefault()} onClick={() => { onPick(null); setQ(''); setOpen(false) }}><Icon name="locate" size={16} /> Ma position</button></li>}
           {sugg.map((s, k) => (
             <li key={k}><button onMouseDown={e => e.preventDefault()} onClick={() => pick(s)}>
-              <Icon name={s.kind === 'address' ? 'map' : 'bus'} size={16} />
+              <Icon name={s.kind === 'address' ? 'map' : s.kind === 'station' ? 'train' : 'bus'} size={16} />
               <span><strong>{s.label}</strong><small>{s.kind === 'address' ? `Adresse · ${s.detail}` : s.detail}</small></span>
             </button></li>
           ))}
@@ -70,8 +70,8 @@ function PlaceInput({ net, label, value, placeholder, onPick, near, autoFocusKey
   )
 }
 
-export function TripView({ net, now, pos, state, setState }: {
-  net: Network; now: Now; pos: { lat: number; lon: number; simulated: boolean }
+export function TripView({ net, now, pos, state, setState, fares }: {
+  net: Network; now: Now; pos: { lat: number; lon: number; simulated: boolean }; fares: Fares | null
   state: TripState; setState: (u: (s: TripState) => TripState) => void
 }) {
   const [busy, setBusy] = useState(false)
@@ -96,7 +96,7 @@ export function TripView({ net, now, pos, state, setState }: {
   }
   if (state.selected != null && state.result) {
     const j = state.selected === -1 ? state.result.directWalk! : state.result.journeys[state.selected]
-    return <JourneyDetail net={net} now={now} journey={j} date={state.searchedAt!.date}
+    return <JourneyDetail net={net} now={now} journey={j} date={state.searchedAt!.date} fares={fares}
       onBack={() => setState(s => ({ ...s, selected: null }))} onBook={() => setState(s => ({ ...s, booking: s.selected }))} />
   }
 
@@ -134,7 +134,7 @@ export function TripView({ net, now, pos, state, setState }: {
 
       {!state.to && <Empty icon="route" title="Où voulez-vous aller ?">Saisissez une adresse, un arrêt ou un lieu. Le calcul combine bus urbains, transport à la demande et cars Région.</Empty>}
       {busy && <p class="muted pad">Calcul en cours…</p>}
-      {state.result && !busy && <Results net={net} now={now} res={state.result} at={state.searchedAt!} onOpen={k => setState(s => ({ ...s, selected: k }))} />}
+      {state.result && !busy && <Results net={net} now={now} res={state.result} at={state.searchedAt!} fares={fares} onOpen={k => setState(s => ({ ...s, selected: k }))} />}
     </div>
   )
 }
@@ -145,7 +145,7 @@ function legIcons(net: Network, j: Journey) {
     : <Pill key={k} route={net.routes[l.trip.route]} small />)
 }
 
-function Results({ net, now, res, at, onOpen }: { net: Network; now: Now; res: PlanResult; at: { date: string; sec: number }; onOpen: (k: number) => void }) {
+function Results({ net, now, res, at, fares, onOpen }: { net: Network; now: Now; res: PlanResult; at: { date: string; sec: number }; fares: Fares | null; onOpen: (k: number) => void }) {
   const isToday = at.date === now.date
   return (
     <section>
@@ -172,6 +172,7 @@ function Results({ net, now, res, at, onOpen }: { net: Network; now: Now; res: P
                   {isToday && day === 0 && inMin >= 0 && inMin <= 60 && <span class="leave">Partez dans {inMin} min</span>}
                   <span class="muted">{j.transfers ? `${j.transfers} corresp.` : 'Direct'} · {j.walkMeters} m à pied</span>
                   {j.hasBooking && <span class="badge-tad">Réservation requise</span>}
+                  {(() => { const p = fareEstimate(net, fares, j); return p && !p.region ? <span class="muted">· {p.text.split('= ')[1]}</span> : null })()}
                 </div>
               </button>
             </li>
@@ -197,7 +198,32 @@ function legLabel(net: Network, l: Leg) {
   return `${r.short} direction ${l.trip.headsign}`
 }
 
-export function JourneyDetail({ net, now, journey, date, onBack, onBook }: { net: Network; now: Now; journey: Journey; date: string; onBack: () => void; onBook: () => void }) {
+/**
+ * Tarif indicatif d'un itinéraire à partir de la grille relevée :
+ * ticket unitaire (45 min, 1 correspondance) ou ticket TAD (1 h, valable aussi sur l'urbain).
+ * Les cars Région ont leur propre tarification (non intégrée).
+ */
+export function fareEstimate(net: Network, fares: Fares | null, j: Journey): { text: string; region: boolean } | null {
+  if (!fares) return null
+  const rides = j.legs.filter(l => l.type === 'ride') as Extract<Leg, { type: 'ride' }>[]
+  const local = rides.filter(r => net.routes[r.trip.route].kind !== 'region')
+  const region = rides.length > local.length
+  if (!local.length) return region ? { text: 'Car Région : tarification Région', region } : null
+  const tad = local.some(r => r.booking)
+  const fare = fares.fares.find(f => f.name === (tad ? 'Ticket TAD' : 'Ticket unitaire'))
+  if (!fare) return null
+  const validity = tad ? 3600 : 45 * 60
+  let tickets = 0, start = -Infinity, used = 0
+  for (const r of local) {
+    if (r.dep - start > validity || used >= 2) { tickets++; start = r.dep; used = 0 }
+    used++
+  }
+  const text = `${tickets} × ${fare.name.toLowerCase()} = ${fmtEur(tickets * fare.price_eur)}`
+  return { text: region ? `${text} + car Région (tarif Région)` : text, region }
+}
+
+export function JourneyDetail({ net, now, journey, date, fares, onBack, onBook }: { net: Network; now: Now; journey: Journey; date: string; fares: Fares | null; onBack: () => void; onBook: () => void }) {
+  const price = fareEstimate(net, fares, journey)
   const bookingLeg = journey.legs.find(l => l.type === 'ride' && l.booking) as Extract<Leg, { type: 'ride' }> | undefined
   const tripDate = bookingLeg ? addDays(date, Math.floor(bookingLeg.dep / 86400)) : date
   const bookable = bookingLeg ? tadBookable(net, tripDate, now) : false
@@ -205,6 +231,7 @@ export function JourneyDetail({ net, now, journey, date, onBack, onBook }: { net
     <div class="sheet-body">
       <Header title={`${fmtHM(journey.dep)} → ${fmtHM(journey.arr)}`} onBack={onBack}
         sub={`${fmtDuration(journey.arr - journey.dep)} · ${journey.transfers ? journey.transfers + ' correspondance(s)' : 'direct'} · ${fmtDay(addDays(date, Math.floor(journey.dep / 86400)), now.date)}`} />
+      {price && <p class="fare-line"><Icon name="ticket" size={16} /> <span>Tarif indicatif : <strong>{price.text}</strong> · ou carte bancaire à bord</span></p>}
       {bookingLeg && (
         <div class="callout tad">
           <strong>Ce trajet comprend un transport à la demande</strong>

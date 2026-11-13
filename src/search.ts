@@ -1,8 +1,8 @@
 // Recherche : arrêts et lignes en local, adresses via la Base Adresse Nationale (BAN).
-import { Network, distance } from './net'
+import { Network, distance, stationLabel } from './net'
 
 export interface Suggestion {
-  kind: 'place' | 'route' | 'address'
+  kind: 'place' | 'route' | 'address' | 'station'
   label: string
   detail: string
   lat?: number
@@ -25,6 +25,12 @@ export function searchLocal(net: Network, q: string, near?: { lat: number; lon: 
     const score = (n.startsWith(nq) ? 0 : 1) + d / 20000 + (p.routes.length ? 0 : 2)
     const lines = p.routes.slice(0, 5).map(r => net.routes[r].short).join(' · ')
     out.push({ kind: 'place', label: p.name, detail: `Arrêt · ${lines}${d > 15000 ? ` · ${Math.round(d / 1000)} km` : ''}`, lat: p.lat, lon: p.lon, id: p.i, score })
+  }
+  for (const st of net.stations) {
+    const n = normalize(`gare ${st.name}`)
+    if (!words.every(w => n.includes(w))) continue
+    const lines = [...new Set(st.links.flatMap(([pl]) => net.places[pl].routes))].slice(0, 5).map(r => net.routes[r].short).join(' · ')
+    out.push({ kind: 'station', label: stationLabel(st.name), detail: `Gare SNCF · correspondance ${lines}`, lat: st.lat, lon: st.lon, id: st.i, score: -0.5 })
   }
   for (const r of net.routes) {
     const n = normalize(`${r.short} ${r.long}`)

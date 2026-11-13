@@ -12,7 +12,7 @@ Usage :
     python3 -I pipeline/build_network.py pipeline/tenants/coqueligo.json \
         --cache .cache --out public/data [--today 2026-11-13]
 """
-import argparse, csv, datetime as dt, io, json, math, os, re, sys, time, urllib.request, zipfile
+import argparse, csv, datetime as dt, io, json, math, os, re, shutil, subprocess, sys, time, urllib.error, urllib.request, zipfile
 from collections import Counter, defaultdict
 from difflib import SequenceMatcher
 
@@ -128,16 +128,109 @@ def download(url, dest, max_age_h=12):
         return meta
     log("téléchargement", url)
     req = urllib.request.Request(url, headers={"User-Agent": "maillage-pipeline/0.1"})
-    with urllib.request.urlopen(req, timeout=600) as r, open(dest + ".part", "wb") as fh:
-        while True:
-            chunk = r.read(1 << 20)
-            if not chunk:
-                break
-            fh.write(chunk)
-        meta = {"last_modified": r.headers.get("Last-Modified"), "final_url": r.geturl()}
+    try:
+        with urllib.request.urlopen(req, timeout=600) as r, open(dest + ".part", "wb") as fh:
+            while True:
+                chunk = r.read(1 << 20)
+                if not chunk:
+                    break
+                fh.write(chunk)
+            meta = {"last_modified": r.headers.get("Last-Modified"), "final_url": r.geturl()}
+    except urllib.error.URLError as e:
+        # Python installé depuis python.org sans certificats racine (macOS) : repli sur curl,
+        # qui utilise le magasin de certificats du système.
+        if "CERTIFICATE_VERIFY_FAILED" not in str(e) or not shutil.which("curl"):
+            raise
+        log("  certificats Python indisponibles, repli sur curl")
+        out = subprocess.run(["curl", "-fsSL", "--retry", "4", "--retry-all-errors", "-A", "maillage-pipeline/0.1", "-D", "-", "-o", dest + ".part", url],
+                             check=True, capture_output=True, text=True).stdout
+        lm = [l.split(":", 1)[1].strip() for l in out.splitlines() if l.lower().startswith("last-modified:")]
+        meta = {"last_modified": lm[-1] if lm else None, "final_url": url}
     os.replace(dest + ".part", dest)
     json.dump(meta, open(dest + ".meta.json", "w"))
     return meta
+
+
+# ---------------------------------------------------------------- recalage des tracés sur la voirie
+
+def fetch_json(url):
+    """GET JSON, avec repli sur curl si Python n'a pas de certificats racine (macOS)."""
+    req = urllib.request.Request(url, headers={"User-Agent": "maillage-pipeline/0.1"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.load(r)
+    except urllib.error.URLError as e:
+        if "CERTIFICATE_VERIFY_FAILED" not in str(e) or not shutil.which("curl"):
+            raise
+        out = subprocess.run(["curl", "-fsSL", "--retry", "3", "--retry-all-errors", "-A", "maillage-pipeline/0.1", url],
+                             check=True, capture_output=True, text=True).stdout
+        return json.loads(out)
+
+def straight_share(coords, gap_m=600):
+    """Part de la longueur d'un tracé faite de segments droits de plus de gap_m."""
+    segs = [haversine(coords[i][1], coords[i][0], coords[i + 1][1], coords[i + 1][0]) for i in range(len(coords) - 1)]
+    total = sum(segs) or 1
+    return sum(x for x in segs if x > gap_m) / total
+
+def snap_to_roads(feats, cache_path, osrm_url, min_gap_m=250, max_ratio=2.2, min_share=0.3):
+    """
+    Remplace les suites de segments droits (> min_gap_m) par l'itinéraire routier OSRM
+    passant par les mêmes points. Les flux sans vrai tracé (TAD, certaines lignes scolaires
+    et régionales) deviennent ainsi lisibles. Garde-fou : si la route fait plus de max_ratio
+    fois la ligne droite, on garde la ligne droite. Résultats mis en cache.
+    """
+    cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
+    def d(a, b):
+        return haversine(a[1], a[0], b[1], b[0])
+    requests_done, snapped_feats, kept = 0, 0, 0
+    for f in feats:
+        c = [tuple(x) for x in f["geometry"]["coordinates"]]
+        # seuls les tracés majoritairement « en ligne droite » (flux sans vrai tracé) sont recalés :
+        # un tracé réel simplifié contient légitimement de longs segments sur route rectiligne
+        if straight_share(c) < min_share:
+            continue
+        out, i, changed = [c[0]], 0, False
+        while i < len(c) - 1:
+            if d(c[i], c[i + 1]) <= min_gap_m:
+                out.append(c[i + 1]); i += 1; continue
+            j = i
+            while j < len(c) - 1 and d(c[j], c[j + 1]) > min_gap_m:
+                j += 1
+            run = c[i:j + 1]
+            routed = []
+            for k in range(0, len(run) - 1, 24):  # 25 points max par requête
+                chunk = run[k:k + 25]
+                key = ";".join(f"{x:.5f},{y:.5f}" for x, y in chunk)
+                if key not in cache:
+                    try:
+                        res = fetch_json(f"{osrm_url}/route/v1/driving/{key}?overview=full&geometries=geojson&continue_straight=false")
+                        rt = res["routes"][0] if res.get("code") == "Ok" else None
+                        cache[key] = {"coords": rt["geometry"]["coordinates"], "dist": rt["distance"]} if rt else None
+                    except Exception as e:  # service indisponible : on garde la ligne droite
+                        log(f"  OSRM indisponible ({e}) : segment laissé droit")
+                        cache[key] = None
+                    requests_done += 1
+                    time.sleep(1.05)  # politique d'usage du serveur de démonstration
+                    if requests_done % 20 == 0:
+                        log(f"  recalage : {requests_done} requêtes…")
+                        json.dump(cache, open(cache_path, "w"))
+                hit = cache[key]
+                straight = sum(d(chunk[m], chunk[m + 1]) for m in range(len(chunk) - 1))
+                if hit and hit["dist"] <= max_ratio * straight + 500:
+                    routed += [tuple(x) for x in hit["coords"]]
+                else:
+                    routed += chunk
+                    kept += 1
+            out += routed[1:] if routed else run[1:]
+            changed = changed or bool(routed)
+            i = j
+        if changed:
+            f["geometry"]["coordinates"] = simplify([(round(x, 5), round(y, 5)) for x, y in out])
+            f["properties"]["snapped"] = 1
+            snapped_feats += 1
+    json.dump(cache, open(cache_path, "w"))
+    log(f"recalage voirie : {snapped_feats} tracés recalés, {requests_done} requêtes OSRM, {kept} portions laissées droites")
+    return {"snapped_features": snapped_feats, "kept_straight": kept, "service": osrm_url}
 
 # ---------------------------------------------------------------- pipeline
 
@@ -147,6 +240,7 @@ def main():
     ap.add_argument("--cache", default=".cache")
     ap.add_argument("--out", default="public/data")
     ap.add_argument("--today", default=None)
+    ap.add_argument("--no-snap", action="store_true", help="ne pas recaler les tracés droits sur la voirie")
     args = ap.parse_args()
 
     cfg = json.load(open(args.tenant, encoding="utf-8"))
@@ -395,6 +489,33 @@ def main():
                        "feeds": sorted({stops[m]["feed"] for m in members})})
     log(f"réconciliation : {len(ids)} arrêts → {len(places)} pôles ({cross_merges} rapprochements inter-flux)")
 
+
+    # ------------------------------------------------ gares ferroviaires en correspondance
+    stations_out = []
+    rail = cfg.get("rail_stations")
+    if rail:
+        rpath = os.path.join(args.cache, f"{cfg['tenant']}-gares.json")
+        if not os.path.exists(rpath) or time.time() - os.path.getmtime(rpath) > 7 * 86400:
+            log("téléchargement des gares", rail["url"])
+            json.dump(fetch_json(rail["url"]), open(rpath, "w"))
+        served_stops = [sid for sid in ids]  # tous les arrêts retenus sont desservis par au moins une course
+        for st in json.load(open(rpath)):
+            pg = st.get("position_geographique") or {}
+            if not pg:
+                continue
+            links = {}
+            for sid in served_stops:
+                s = stops[sid]
+                d = haversine(pg["lat"], pg["lon"], s["lat"], s["lon"])
+                if d <= rail.get("max_walk_m", 500):
+                    pl = place_of[sid]
+                    links[pl] = min(links.get(pl, 1e9), d)
+            if links:
+                stations_out.append({"name": st["nom"], "lat": pg["lat"], "lon": pg["lon"], "uic": st.get("codes_uic"),
+                                     "segment": st.get("segment_drg"),
+                                     "links": sorted(([pl, int(round(d))] for pl, d in links.items()), key=lambda x: x[1])})
+        log(f"gares : {len(stations_out)} en correspondance avec le réseau ({', '.join(x['name'] for x in stations_out)})")
+
     # ------------------------------------------------ correspondances à pied
     stop_index = {sid: k for k, sid in enumerate(ids)}
     foot = []
@@ -432,10 +553,9 @@ def main():
         "trips": [[route_index[t["route"]], svc_index[t["service"]], t["headsign"], int(t["dir"]) if str(t["dir"]).isdigit() else 0,
                    [stop_index[s] for s in t["stops"]], t["arr"], t["dep"], 1 if t["booking"] else 0] for t in trips],
         "footpaths": foot,
+        "stations": [[x["name"], round(x["lat"], 6), round(x["lon"], 6), x["uic"], x["segment"], x["links"]] for x in stations_out],
+        "stations_source": ({"name": rail.get("name"), "licence": rail.get("licence"), "page": rail.get("page")} if rail else None),
     }
-    with open(os.path.join(args.out, "network.json"), "w", encoding="utf-8") as fh:
-        json.dump(out, fh, ensure_ascii=False, separators=(",", ":"))
-
     # tracés par ligne (dédupliqués)
     feats, seen = [], set()
     for t in trips:
@@ -450,10 +570,26 @@ def main():
             continue
         seen.add(key)
         r = routes[t["route"]]
-        feats.append({"type": "Feature", "properties": {"route": ri, "color": "#" + r["color"], "kind": r["kind"]},
+        # provenance / destination du tracé (pôles de la première et de la dernière desserte)
+        origin = places[place_of[t["stops"][0]]]["name"]
+        dest = places[place_of[t["stops"][-1]]]["name"]
+        feats.append({"type": "Feature", "properties": {"route": ri, "color": "#" + r["color"], "kind": r["kind"],
+                                                        "from": origin, "to": dest},
                       "geometry": {"type": "LineString", "coordinates": coords}})
+
+    snap_cfg = cfg.get("snap_to_roads")
+    if snap_cfg and snap_cfg.get("enabled") and not args.no_snap:
+        out["shapes"] = snap_to_roads(feats, os.path.join(args.cache, "osrm-cache.json"), snap_cfg["osrm_url"].rstrip("/"))
+    with open(os.path.join(args.out, "network.json"), "w", encoding="utf-8") as fh:
+        json.dump(out, fh, ensure_ascii=False, separators=(",", ":"))
     with open(os.path.join(args.out, "lines.geojson"), "w", encoding="utf-8") as fh:
         json.dump({"type": "FeatureCollection", "features": feats}, fh, separators=(",", ":"))
+
+    # tarifs (fichier relevé à part, en attendant un flux GTFS-Fares publié par le réseau)
+    if cfg.get("fares_file"):
+        src = os.path.join(os.path.dirname(args.tenant), cfg["fares_file"])
+        shutil.copyfile(src, os.path.join(args.out, "fares.json"))
+        log(f"tarifs : {len(json.load(open(src))['fares'])} titres copiés depuis {cfg['fares_file']}")
 
     size = os.path.getsize(os.path.join(args.out, "network.json")) / 1024
     size2 = os.path.getsize(os.path.join(args.out, "lines.geojson")) / 1024

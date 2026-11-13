@@ -1,0 +1,141 @@
+{
+  "source": "Portail Informations Voyageurs du réseau (Matawan 2clock), rubrique Tarifs",
+  "source_url": "https://annonay-ra.plateforme-2cloud.com/2clock/titres-abonnements",
+  "retrieved": "2026-11-13",
+  "note": "Relevé d'une page publique. À remplacer par un flux GTFS-Fares v2 publié par la régie.",
+  "fares": [
+    {
+      "category": "ticket",
+      "name": "10 voyages TAD",
+      "price_eur": 20.0,
+      "transfers": true,
+      "conditions": "TITRE NON SCOLAIRE. Un ticket est valable sur le réseau TAD et URBAIN pendant 1h avec une correspondance possible. Ce titre est obligatoirement chargé sur une carte du réseau."
+    },
+    {
+      "category": "ticket",
+      "name": "Billet de groupe",
+      "price_eur": 5.0,
+      "transfers": true,
+      "conditions": "TITRE NON SCOLAIRE. Réservé aux groupes de 10 personnes maximum"
+    },
+    {
+      "category": "ticket",
+      "name": "T CLASSE",
+      "price_eur": 12.5,
+      "transfers": true,
+      "conditions": "Pour un groupe primaire, scolaire, collège, lycée de 40 personnes maximum"
+    },
+    {
+      "category": "ticket",
+      "name": "Ticket 10 voyages",
+      "price_eur": 10.0,
+      "transfers": true,
+      "conditions": "TITRE VALABLE UNIQUEMENT SUR LE RESEAU URBAIN. Pour des déplacements occasionnels. 1 ticket est valable pendant 45 minutes avec une correspondance possible. Le titre \"10 voyages\" n'a pas de date de péremption, les tickets non utilisés restent disponibles pour les prochains trajets."
+    },
+    {
+      "category": "ticket",
+      "name": "Ticket 10 voyages solidaire",
+      "price_eur": 5.0,
+      "transfers": true,
+      "conditions": "TITRE VALABLE UNIQUEMENT SUR LE RESEAU URBAIN. UNIQUEMENT SUR JUSTIFICATIF D'UN QUOTIENT FAMILIAL INFERIEUR OU EGAL A 600 Pour des déplacements occasionnels. 1 ticket est valable pendant 45 minutes avec une correspondance possible. Le titre \"10 voyages\" n'a pas de date de péremption, les tickets non utilisés restent disponibles pour les prochains trajets."
+    },
+    {
+      "category": "ticket",
+      "name": "Tickets TRANSITION",
+      "price_eur": 0.0,
+      "transfers": true,
+      "conditions": ""
+    },
+    {
+      "category": "ticket",
+      "name": "Ticket TAD",
+      "price_eur": 2.0,
+      "transfers": true,
+      "conditions": "TITRE NON SCOLAIRE. Ce ticket est valable sur le réseau TAD et URBAIN pendant 1h avec une correspondance possible. Ce titre est obligatoirement chargé sur une carte du réseau."
+    },
+    {
+      "category": "ticket",
+      "name": "Ticket unitaire",
+      "price_eur": 1.4,
+      "transfers": true,
+      "conditions": "Valable 45 minutes à partir de la vente. Une correspondance possible."
+    },
+    {
+      "category": "ticket",
+      "name": "Ticket unitaire groupe sur carte",
+      "price_eur": 0.5,
+      "transfers": true,
+      "conditions": "Uniquement pour les groupes de plus de 10 personnes"
+    },
+    {
+      "category": "ticket",
+      "name": "Ticket unitaire sur carte",
+      "price_eur": 1.4,
+      "transfers": true,
+      "conditions": "Valable sur le réseau URBAIN et SCOLAIRE. 1 ticket est valable pendant 45 minutes à partir de la première validation avec une correspondance possible."
+    },
+    {
+      "category": "ticket",
+      "name": "Ticket unitaire TAD",
+      "price_eur": 2.0,
+      "transfers": true,
+      "conditions": "Valable 1H à partir de la vente. Une correspondance possible. Ticket valable sur le réseau TAD et urbain."
+    },
+    {
+      "category": "abonnement",
+      "name": "ABONNEMENT ANNUEL COMMERCIAL",
+      "price_eur": 250.0,
+      "transfers": true,
+      "conditions": "Voyagez en toute liberté sur le réseau urbain pendant un an ! Votre abonnement est valable un an à compter de sa première validation à bord, qui doit avoir lieu dans l'année suivant l'achat."
+    },
+    {
+      "category": "abonnement",
+      "name": "ABONNEMENT ANNUEL PRIMAIRE MAJORE 2026-2027",
+      "price_eur": 130.0,
+      "transfers": true,
+      "conditions": "Valable du 1er septembre 2026 au 31 août 2027 sur le réseau scolaire et urbain hors TAD. Tarif majoré de 30€ pour achat hors période inscriptions : après le 10 juillet 2026 sans justificatif (déménagement, affectation tardive établissement scolaire)"
+    },
+    {
+      "category": "abonnement",
+      "name": "ABONNEMENT ANNUEL SCOLAIRE MAJORE 2026-2027",
+      "price_eur": 140.0,
+      "transfers": true,
+      "conditions": "Valable du 1er septembre 2026 au 31 août 2027 sur le réseau scolaire et urbain hors TAD. Tarif majoré de 30€ pour achat hors période inscriptions : après le 10 juillet 2026 sans justificatif (déménagement, affectation tardive établissement scolaire)"
+    },
+    {
+      "category": "abonnement",
+      "name": "ABONNEMENT ANNUEL SCOLAIRE/PRIMAIRE HORS TERRITOITRE MAJORE 2026-2027",
+      "price_eur": 180.0,
+      "transfers": true,
+      "conditions": "Titre de transport pour les usagers ne résidant pas sur le territoire d'Annonay Rhône Agglo mais souhaitant emprunter les services CoqueliGO. Abonnement valable du 1er septembre 2026 au 31 août 2027 sur le réseau scolaire et urbain hors TAD. Tarif majoré de 30€ pour achat hors période inscriptions : après le 10 juillet 2026 sans justificatif (déménagement, affectation tardive établissement scolaire)"
+    },
+    {
+      "category": "abonnement",
+      "name": "Abonnement mensuel glissant",
+      "price_eur": 25.0,
+      "transfers": true,
+      "conditions": "Titre NON SCOLAIRE. Abonnement valable 1 mois à partir de sa première validation à bord sur le réseau urbain. Correspondances illimités."
+    },
+    {
+      "category": "abonnement",
+      "name": "Abonnement mensuel glissant tarif solidaire 1",
+      "price_eur": 12.5,
+      "transfers": true,
+      "conditions": "Titre NON SCOLAIRE. Abonnement valable 1 mois à partir de sa première validation à bord sur le réseau urbain. Correspondances illimités. L'usager doit justifier d'un quotient familial inférieur à 600."
+    },
+    {
+      "category": "abonnement",
+      "name": "Abonnement mensuel glissant tarif solidaire 2",
+      "price_eur": 10.0,
+      "transfers": true,
+      "conditions": "Titre NON SCOLAIRE. Abonnement valable 1 mois à partir de sa première validation à bord sur le réseau urbain. Correspondances illimités. L'usager doit justifier d'un quotient familial inférieur à 400."
+    },
+    {
+      "category": "abonnement",
+      "name": "Duplicata carte",
+      "price_eur": 10.0,
+      "transfers": true,
+      "conditions": ""
+    }
+  ]
+}

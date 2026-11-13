@@ -1,19 +1,62 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { Network, loadNetwork, parisNow, distance } from './net'
+import { Fares, Kind, Network, loadFares, loadNetwork, parisNow, distance } from './net'
 import { MapView } from './map'
 import { Icon } from './ui'
 import { useFavorites } from './store'
 import { Explore, PlaceView, RouteView } from './views/explore'
 import { TripView, TripState, initialTrip } from './views/trip'
-import { AlertsView, MeView, SourcesView } from './views/more'
+import { AlertsView, FaresView, MeView, SourcesView } from './views/more'
 
 type Tab = 'explore' | 'trip' | 'alerts' | 'me'
-type Detail = { kind: 'place'; id: number } | { kind: 'route'; id: number } | { kind: 'sources' }
+type Detail = { kind: 'place'; id: number } | { kind: 'route'; id: number } | { kind: 'sources' } | { kind: 'fares' }
 type Snap = 'peek' | 'half' | 'full'
 type Pos = { lat: number; lon: number; simulated: boolean; reason?: string }
 
 const isDesktop = () => window.matchMedia('(min-width: 900px)').matches
+
+type MapKey = Kind | 'gares'
+const ALL_KINDS: MapKey[] = ['urbain', 'tad', 'scolaire', 'region', 'gares']
+const KINDS_KEY = 'maillage:map-kinds:v2'
+
+/** Types de lignes affichés sur la carte, mémorisés sur l'appareil. */
+function useMapKinds() {
+  const [kinds, setKinds] = useState<MapKey[]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(KINDS_KEY) || 'null')
+      if (Array.isArray(v)) return ALL_KINDS.filter(k => v.includes(k))
+    } catch { /* stockage indisponible */ }
+    return ALL_KINDS
+  })
+  useEffect(() => { try { localStorage.setItem(KINDS_KEY, JSON.stringify(kinds)) } catch { /* idem */ } }, [kinds])
+  const toggle = (k: MapKey) => setKinds(cur => (cur.includes(k) ? cur.filter(x => x !== k) : ALL_KINDS.filter(x => x === k || cur.includes(x))))
+  const setGroup = (group: MapKey[], on: boolean) => setKinds(cur => ALL_KINDS.filter(x => (group.includes(x) ? on : cur.includes(x))))
+  return { kinds, toggle, setGroup }
+}
+
+/** Filtre de la carte : réseau local (urbain, TAD, scolaire) et cars Région. */
+function MapFilters({ net, kinds, toggle, setGroup }: { net: Network; kinds: MapKey[]; toggle: (k: MapKey) => void; setGroup: (g: MapKey[], on: boolean) => void }) {
+  const local: Kind[] = ['urbain', 'tad', 'scolaire']
+  const labels: Record<MapKey, string> = { urbain: 'Urbain', tad: 'TAD', scolaire: 'Scolaire', region: 'Région', gares: 'Gares' }
+  const swatch = (k: MapKey) => (k === 'gares' ? '#1e3a8a' : net.routes.find(r => r.kind === k)?.color ?? '#888')
+  const allLocal = local.every(k => kinds.includes(k))
+  const chip = (k: MapKey) => (
+    <button key={k} class={`map-chip${kinds.includes(k) ? ' on' : ''}`} aria-pressed={kinds.includes(k)} onClick={() => toggle(k)}
+      title={kinds.includes(k) ? `Masquer les lignes ${labels[k].toLowerCase()}` : `Afficher les lignes ${labels[k].toLowerCase()}`}>
+      <span class={`swatch swatch-${k}`} style={{ background: swatch(k) }} aria-hidden="true" />{labels[k]}
+    </button>
+  )
+  return (
+    <div class="map-filters" role="group" aria-label="Types de lignes affichés sur la carte">
+      <div class="filter-group">
+        <button class={`group-label${allLocal ? ' on' : ''}`} aria-pressed={allLocal} onClick={() => setGroup(local, !allLocal)}
+          title={allLocal ? `Masquer tout le réseau ${net.tenant.name}` : `Afficher tout le réseau ${net.tenant.name}`}>{net.tenant.name}</button>
+        {local.map(chip)}
+      </div>
+      <div class="filter-group">{chip('region')}{net.stations.length > 0 && chip('gares')}</div>
+    </div>
+  )
+}
 
 export function App() {
   const [net, setNet] = useState<Network | null>(null)
@@ -45,7 +88,10 @@ function Shell({ net }: { net: Network }) {
   }
   useEffect(locate, [])
 
+  const [fares, setFares] = useState<Fares | null>(null)
+  useEffect(() => { loadFares().then(setFares) }, [])
   const { fav, toggle } = useFavorites()
+  const mapKinds = useMapKinds()
   const [tab, setTab] = useState<Tab>('explore')
   const [stack, setStack] = useState<Detail[]>([])
   const [trip, setTripState] = useState<TripState>(initialTrip)
@@ -82,17 +128,18 @@ function Shell({ net }: { net: Network }) {
   const [sheetH, setSheetH] = useState(0)
   const [desktop, setDesktop] = useState(isDesktop())
   useEffect(() => { const f = () => setDesktop(isDesktop()); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f) }, [])
-  const padding = desktop ? { top: 20, bottom: 20, left: 420 } : { top: 70, bottom: Math.min(sheetH, window.innerHeight * 0.62), left: 0 }
+  const padding = desktop ? { top: 70, bottom: 20, left: 420 } : { top: 110, bottom: Math.min(sheetH, window.innerHeight * 0.62), left: 0 }
 
   let content: ComponentChildren
   if (tab === 'explore') {
     if (detail?.kind === 'place') content = <PlaceView key={detail.id} net={net} id={detail.id} now={now} pos={pos} fav={fav} toggleFav={toggle} onBack={back} onRoute={openRoute} onGo={goTo} onFrom={goFrom} />
     else if (detail?.kind === 'route') content = <RouteView key={detail.id} net={net} id={detail.id} now={now} fav={fav} toggleFav={toggle} onBack={back} onPlace={openPlace} />
     else if (detail?.kind === 'sources') content = <SourcesView net={net} onBack={back} />
+    else if (detail?.kind === 'fares' && fares) content = <FaresView net={net} fares={fares} onBack={back} />
     else content = <Explore net={net} now={now} pos={pos} fav={fav} onPlace={openPlace} onRoute={openRoute} onSearch={() => { setTrip(s => ({ ...s, focusTo: s.focusTo + 1 })); setTab('trip'); setSnap('full') }} />
-  } else if (tab === 'trip') content = <TripView net={net} now={now} pos={pos} state={trip} setState={setTrip} />
+  } else if (tab === 'trip') content = <TripView net={net} now={now} pos={pos} state={trip} setState={setTrip} fares={fares} />
   else if (tab === 'alerts') content = <AlertsView net={net} />
-  else content = <MeView net={net} fav={fav} onPlace={openPlace} onRoute={openRoute} onSources={() => push({ kind: 'sources' })} />
+  else content = <MeView net={net} fav={fav} onPlace={openPlace} onRoute={openRoute} onSources={() => push({ kind: 'sources' })} onFares={() => push({ kind: 'fares' })} hasFares={!!fares} />
 
   const switchTab = (t: Tab) => {
     if (t === tab && t === 'explore') setStack([])
@@ -103,7 +150,8 @@ function Shell({ net }: { net: Network }) {
 
   return (
     <div class={`shell${desktop ? ' desktop' : ''}`}>
-      <MapView net={net} user={pos} highlightRoute={highlightRoute} journey={journey} focus={focus} padding={padding} onPlace={openPlace} />
+      <MapView net={net} user={pos} highlightRoute={highlightRoute} journey={journey} focus={focus} padding={padding} onPlace={openPlace} onRoute={openRoute} kinds={mapKinds.kinds} />
+      <MapFilters net={net} {...mapKinds} />
       <div class="topbar">
         <span class="brand"><span class="brand-mark" aria-hidden="true" />Maillage<em>démo · {net.tenant.name}</em></span>
         <button class="icon-btn floating" onClick={locate} aria-label="Me localiser"><Icon name="locate" /></button>
