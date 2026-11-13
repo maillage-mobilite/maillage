@@ -410,6 +410,173 @@ def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, r
     return report
 
 
+def _project_all(line, cum, p, max_off):
+    """Projections d'un point sur les segments proches d'une polyligne : [(abscisse, écart, segment, t)],
+    une seule par passage (minimum local), pour gérer les lignes qui repassent au même endroit."""
+    kx = 111320 * math.cos(math.radians(p[1]))
+    hits = []
+    for i in range(len(line) - 1):
+        ax, ay = (line[i][0] - p[0]) * kx, (line[i][1] - p[1]) * 111320
+        bx, by = (line[i + 1][0] - p[0]) * kx, (line[i + 1][1] - p[1]) * 111320
+        dx, dy = bx - ax, by - ay
+        L2 = dx * dx + dy * dy
+        t = max(0.0, min(1.0, -(ax * dx + ay * dy) / L2)) if L2 else 0.0
+        off = math.hypot(ax + t * dx, ay + t * dy)
+        if off <= max_off:
+            hits.append((cum[i] + t * (cum[i + 1] - cum[i]), off, i, t))
+    out = []
+    for h in hits:  # minima locaux : on ne garde qu'un point par « passage » (abscisses espacées de > 300 m)
+        if out and h[0] - out[-1][0] < 300:
+            if h[1] < out[-1][1]:
+                out[-1] = h
+        else:
+            out.append(h)
+    return out
+
+
+def remove_spurs(coords, stop_pts, min_len=40.0, stop_tol=80.0):
+    """Supprime les éperons (aller-retour sur la même chaussée) dont la pointe ne dessert aucun arrêt :
+    artefacts d'appariement. Un demi-tour qui va chercher un arrêt est conservé."""
+    c = list(coords)
+    removed, i = 0, 1
+    while i < len(c) - 1:
+        a, b, e = c[i - 1], c[i], c[i + 1]
+        v1, v2 = (b[0] - a[0], b[1] - a[1]), (e[0] - b[0], e[1] - b[1])
+        n1, n2 = math.hypot(*v1), math.hypot(*v2)
+        if n1 * n2 and (v1[0] * v2[0] + v1[1] * v2[1]) / (n1 * n2) < -0.9:
+            k, L = 1, 0.0
+            while i - k >= 0 and i + k < len(c) and haversine(c[i - k][1], c[i - k][0], c[i + k][1], c[i + k][0]) < 30:
+                L = haversine(c[i - k][1], c[i - k][0], b[1], b[0])
+                k += 1
+            near = min((haversine(b[1], b[0], s_[1], s_[0]) for s_ in stop_pts), default=1e9)
+            if L >= min_len and near > stop_tol and k > 1:
+                c = c[:i - k + 1] + c[i + k - 1:]  # on recolle les deux brins à la base de l'éperon
+                removed += 1
+                i = max(1, i - k)
+                continue
+        i += 1
+    return c, removed
+
+
+def check_against_stops(feats, osrm_url, kinds, cache_path, max_off=120, ratio=1.5, slack_m=1000):
+    """
+    Contrôle des tracés : la portion entre deux arrêts consécutifs ne doit pas dépasser
+    max(ratio × plus court chemin routier, chemin + slack_m) ; un arrêt doit être à moins de
+    max_off du tracé. Sinon la portion est remplacée par l'itinéraire routier OSRM entre les arrêts.
+    Corrige les détours aberrants (appariement parti sur une mauvaise route, tracé publié erroné).
+    """
+    try:
+        fetch_json(f"{osrm_url}/nearest/v1/driving/4.67,45.24")
+    except Exception as e:
+        log(f"contrôle des tracés : moteur OSRM injoignable ({e}) — étape ignorée")
+        return None
+    cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
+
+    def route(a, b):
+        k = f"{a[0]:.5f},{a[1]:.5f};{b[0]:.5f},{b[1]:.5f}"
+        if k not in cache:
+            try:
+                g = fetch_json(f"{osrm_url}/route/v1/driving/{k}?overview=full&geometries=geojson&radiuses=60;60")
+                rt = g["routes"][0] if g.get("code") == "Ok" else None
+                cache[k] = {"geom": rt["geometry"]["coordinates"], "dist": rt["distance"]} if rt else None
+            except Exception:
+                cache[k] = None
+        return cache[k]
+
+    report = {"checked": 0, "fixed_features": 0, "fixed_portions": 0, "worst": [], "portions": []}
+    for f in feats:
+        if f["properties"].get("kind") not in kinds or not f.get("_stops"):
+            continue
+        line = [tuple(c) for c in f["geometry"]["coordinates"]]
+        sts = f["_stops"]
+        if len(line) < 2 or len(sts) < 2:
+            continue
+        report["checked"] += 1
+        cum = [0.0]
+        for a_, b_ in zip(line, line[1:]):
+            cum.append(cum[-1] + haversine(a_[1], a_[0], b_[1], b_[0]))
+        # ancrage des arrêts sur le tracé : abscisses croissantes, programmation dynamique
+        cands = [_project_all(line, cum, p, max_off) for p in sts]
+        INF = float("inf")
+        best = [[INF] * len(c) for c in cands]
+        prev = [[-1] * len(c) for c in cands]
+        last_ok = None  # (indice d'arrêt, indice de candidat) le plus récent atteignable
+        anchors = [None] * len(sts)
+        # DP sur les arrêts ancrables ; un arrêt sans candidat est « sauté » (portion à refaire)
+        seq = [i for i, c in enumerate(cands) if c]
+        for n, i in enumerate(seq):
+            for a, ca in enumerate(cands[i]):
+                if n == 0:
+                    best[i][a] = ca[1] * 3
+                    continue
+                j = seq[n - 1]
+                for b, cb in enumerate(cands[j]):
+                    if best[j][b] < INF and cb[0] <= ca[0] + 1:
+                        v = best[j][b] + (ca[0] - cb[0]) + ca[1] * 3
+                        if v < best[i][a]:
+                            best[i][a], prev[i][a] = v, b
+            if all(v == INF for v in best[i]):  # rupture d'ordre : on repart de cet arrêt
+                for a, ca in enumerate(cands[i]):
+                    best[i][a] = ca[1] * 3
+        if seq:
+            i = seq[-1]
+            a = min(range(len(cands[i])), key=lambda x: best[i][x])
+            for n in range(len(seq) - 1, -1, -1):
+                i = seq[n]
+                anchors[i] = cands[i][a]
+                a = prev[i][a] if n else -1
+                if a < 0 and n:
+                    j = seq[n - 1]
+                    a = min(range(len(cands[j])), key=lambda x: best[j][x])
+        # portions à refaire : entre arrêts ancrés consécutifs (en sautant les arrêts non ancrés)
+        def point_at(an):
+            _, _, i, t = an
+            a_, b_ = line[i], line[i + 1]
+            return (a_[0] + (b_[0] - a_[0]) * t, a_[1] + (b_[1] - a_[1]) * t)
+
+        new, fixed, k = [], 0, 0
+        idx = [i for i in range(len(sts)) if anchors[i]]
+        if not idx:
+            continue
+        first = anchors[idx[0]]
+        new = line[:first[2] + 1] + [point_at(first)]
+        for u, v in zip(idx, idx[1:]):
+            A, B = anchors[u], anchors[v]
+            seg_len = B[0] - A[0]
+            skipped = v - u > 1  # arrêts intermédiaires que le tracé ne dessert pas
+            ref_parts = [route(sts[w], sts[w + 1]) for w in range(u, v)]
+            ref = sum(p["dist"] for p in ref_parts) if all(ref_parts) else None
+            # une abscisse décroissante (arrêts mal ordonnés sur le tracé) n'est pas corrigée : cas ambigu
+            bad = ref is not None and seg_len > 0 and (skipped or seg_len > max(ratio * ref, ref + slack_m))
+            if bad:
+                fixed += 1
+                for p in ref_parts:
+                    new += [tuple(c) for c in p["geom"]]
+                new.append(point_at(B))
+                report["worst"].append((f["properties"]["route"], round(seg_len), round(ref), skipped))
+                old = line[A[2] + 1:B[2] + 1]
+                props = {"route": f["properties"]["route"], "from": f["properties"]["from"], "to": f["properties"]["to"],
+                         "len": round(seg_len), "ref": round(ref)}
+                report["portions"].append({"type": "Feature", "properties": {**props, "v": "avant"},
+                                           "geometry": {"type": "LineString", "coordinates": [point_at(A)] + old + [point_at(B)]}})
+                report["portions"].append({"type": "Feature", "properties": {**props, "v": "après"},
+                                           "geometry": {"type": "LineString", "coordinates": [c for p in ref_parts for c in p["geom"]]}})
+            else:
+                new += line[A[2] + 1:B[2] + 1] + [point_at(B)]
+        last = anchors[idx[-1]]
+        new += line[last[2] + 1:]
+        new, spurs = remove_spurs(new, sts)
+        report["spurs_removed"] = report.get("spurs_removed", 0) + spurs
+        if fixed or spurs:
+            report["fixed_features"] += 1
+            report["fixed_portions"] += fixed
+            f["geometry"]["coordinates"] = simplify([(round(x, 5), round(y, 5)) for x, y in new], 3.5)
+    json.dump(cache, open(cache_path, "w"))
+    log(f"contrôle des tracés : {report['checked']} tracés, {report['fixed_portions']} portions refaites sur {report['fixed_features']} tracés, "
+        f"{report.get('spurs_removed', 0)} éperons supprimés")
+    return report
+
+
 # ---------------------------------------------------------------- tracés ferroviaires
 
 def rail_route(feats, osrm_url, cache_path, radius=500, max_ratio=1.6, chunk=100):
@@ -978,7 +1145,9 @@ def main():
         dest = places[place_of[t["stops"][-1]]]["name"]
         feats.append({"type": "Feature", "properties": {"route": ri, "color": "#" + r["color"], "kind": r["kind"],
                                                         "from": origin, "to": dest},
-                      "geometry": {"type": "LineString", "coordinates": coords}})
+                      "geometry": {"type": "LineString", "coordinates": coords},
+                      # arrêts desservis, dans l'ordre (contrôle des tracés ; retiré avant écriture)
+                      "_stops": [(stops[s]["lon"], stops[s]["lat"]) for s in t["stops"]]})
 
     if reversed_shapes:
         log(f"tracés : {reversed_shapes} formes retournées pour suivre le sens de circulation")
@@ -1001,6 +1170,18 @@ def main():
             for ri, v in sorted(rep.items(), key=lambda x: -x[1]["p95_m"]):
                 log(f"    {routes[route_ids[ri]]['short']:7} écart corrigé médian {v['median_m']:5.1f} m · p95 {v['p95_m']:5.1f} m · max {v['max_m']:6.1f} m"
                     f" · blocs gardés {v['kept_original']}/{v['blocks']}")
+    # contrôle final : chaque portion entre deux arrêts comparée au plus court chemin routier
+    if match_cfg and match_cfg.get("enabled") and not args.no_snap:
+        chk = check_against_stops(feats, match_cfg["osrm_url"].rstrip("/"), set(match_cfg.get("check_kinds", ["region"])),
+                                  os.path.join(args.cache, "osrm-check-cache.json"))
+        if chk:
+            # portions refaites (avant / après) : fichier de contrôle visuel, hors application
+            with open(os.path.join(args.cache, "shapes-check.geojson"), "w") as fh:
+                json.dump({"type": "FeatureCollection", "features": chk.pop("portions")}, fh)
+            chk.pop("worst", None)
+            out["shapes_check"] = chk
+    for f in feats:
+        f.pop("_stops", None)
     with open(os.path.join(args.out, "network.json"), "w", encoding="utf-8") as fh:
         json.dump(out, fh, ensure_ascii=False, separators=(",", ":"))
     # portions à sens unique (flèches de sens uniquement là où l'aller et le retour diffèrent)
