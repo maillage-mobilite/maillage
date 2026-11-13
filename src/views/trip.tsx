@@ -6,6 +6,7 @@ import { Suggestion, searchAddress, searchLocal } from '../search'
 import { Empty, Header, Icon, Pill, TheoNotice } from '../ui'
 import { RtNote, TrainRowView, connectingTrains } from '../trains'
 import { useTrainRealtime } from '../realtime'
+import { refineWalks } from '../geometry'
 import { LOCATION_META, type SavedLocation } from '../store'
 import { distance, stationLabel } from '../net'
 
@@ -111,6 +112,13 @@ export function TripView({ net, now, pos, state, setState, fares, saved = [], on
         : plan(net, s.from ?? myPos, s.to!, at.date, at.sec, o)
       setState(st => ({ ...st, result, searchedAt: at, selected: null, booking: null }))
       setBusy(false)
+      // marche recalculée sur les rues (asynchrone) : on remplace le résultat s'il est toujours affiché
+      const all = [...result.journeys, ...(result.directWalk ? [result.directWalk] : [])]
+      refineWalks(all).then(refined => {
+        const journeys = refined.slice(0, result.journeys.length)
+        const directWalk = result.directWalk ? refined[refined.length - 1] : undefined
+        setState(st => st.result === result ? { ...st, result: { ...result, journeys, directWalk, routedWalk: true } } : st)
+      })
     }, 10)
   }
   // relance automatique quand les paramètres changent
@@ -283,6 +291,7 @@ export function JourneyDetail({ net, now, journey, date, fares, onBack, onBook }
       <Header title={`${fmtHM(journey.dep)} → ${fmtHM(journey.arr)}`} onBack={onBack}
         sub={`${fmtDuration(journey.arr - journey.dep)} · ${journey.transfers ? journey.transfers + ' correspondance(s)' : 'direct'} · ${fmtDay(addDays(date, Math.floor(journey.dep / 86400)), now.date)}`} />
       {price && <p class="fare-line"><Icon name="ticket" size={16} /> <span>Tarif indicatif : <strong>{price.text}</strong> · ou carte bancaire à bord</span></p>}
+      {journey.tightWalk && <p class="notice warn">Par les rues, la marche de correspondance est plus longue que prévu : la correspondance risque d'être manquée.</p>}
       {bookingLeg && (
         <div class="callout tad">
           <strong>Ce trajet comprend un transport à la demande</strong>
@@ -298,7 +307,7 @@ export function JourneyDetail({ net, now, journey, date, fares, onBack, onBook }
               <li key={k} class="leg walk">
                 <span class="leg-time">{fmtHM(l.dep)}</span>
                 <span class="leg-icon"><Icon name="walk" size={18} /></span>
-                <div><strong>{k === 0 ? `Départ : ${l.from.label}` : 'À pied'}</strong>{l.meters >= 25 && <div class="muted small">{legLabel(net, l)} · {Math.max(1, Math.round((l.arr - l.dep) / 60))} min</div>}</div>
+                <div><strong>{k === 0 ? `Départ : ${l.from.label}` : 'À pied'}</strong>{l.meters >= 25 && <div class="muted small">{legLabel(net, l)} · {Math.max(1, Math.round((l.arr - l.dep) / 60))} min{l.geom || l.meters < 100 ? '' : ' · distance estimée à vol d\'oiseau'}</div>}</div>
               </li>
             )
           }

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { distinctRoutes, stationLabel, type Kind, type Network } from './net'
 import type { Journey } from './router'
 import { Icon, Pill } from './ui'
+import { loadShapes, rideGeometry } from './geometry'
 
 export interface MapProps {
   net: Network
@@ -207,7 +208,7 @@ export function MapView(props: MapProps) {
         layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-optional': true },
         paint: { 'text-color': '#1e3a8a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.8 } })
       m.addLayer({ id: 'journey-walk', type: 'line', source: 'journey', filter: ['==', ['get', 'type'], 'walk'],
-        layout: { 'line-cap': 'round' }, paint: { 'line-color': '#4b5563', 'line-width': 4, 'line-dasharray': [0.1, 2] } })
+        layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#4b5563', 'line-width': 4, 'line-dasharray': [0.1, 2], 'line-opacity': ['case', ['get', 'approx'], 0.45, 1] } })
       m.addLayer({ id: 'journey-ride-casing', type: 'line', source: 'journey', filter: ['==', ['get', 'type'], 'ride'],
         layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 10 } })
       m.addLayer({ id: 'journey-ride', type: 'line', source: 'journey', filter: ['==', ['get', 'type'], 'ride'],
@@ -339,7 +340,8 @@ export function MapView(props: MapProps) {
 
   // itinéraire
   useEffect(() => {
-    whenReady(() => {
+    whenReady(async () => {
+      if (props.journey) await loadShapes()
       const m = map.current!
       const src = m.getSource('journey') as GeoJSONSource
       const j = props.journey
@@ -350,15 +352,15 @@ export function MapView(props: MapProps) {
       for (const l of j.legs) {
         let coords: [number, number][]
         let color = '#4b5563'
-        if (l.type === 'walk') coords = [[l.from.lon, l.from.lat], [l.to.lon, l.to.lat]]
+        if (l.type === 'walk') coords = l.geom ?? [[l.from.lon, l.from.lat], [l.to.lon, l.to.lat]]
         else {
-          coords = l.trip.stops.slice(l.fromPos, l.toPos + 1).map(s => [net.stops[s].lon, net.stops[s].lat])
+          coords = rideGeometry(net, l) ?? l.trip.stops.slice(l.fromPos, l.toPos + 1).map(s => [net.stops[s].lon, net.stops[s].lat])
           color = net.routes[l.trip.route].color
           features.push({ type: 'Feature', properties: { color }, geometry: { type: 'Point', coordinates: coords[0] } })
           features.push({ type: 'Feature', properties: { color }, geometry: { type: 'Point', coordinates: coords[coords.length - 1] } })
         }
         coords.forEach(c => b.extend(c))
-        features.unshift({ type: 'Feature', properties: { type: l.type, color }, geometry: { type: 'LineString', coordinates: coords } })
+        features.unshift({ type: 'Feature', properties: { type: l.type, color, approx: l.type === 'walk' && !l.geom }, geometry: { type: 'LineString', coordinates: coords } })
       }
       src.setData({ type: 'FeatureCollection', features })
       m.fitBounds(b as LngLatBoundsLike, { maxZoom: 16, duration: 600 })

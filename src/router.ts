@@ -11,10 +11,10 @@ import { Network, Trip, addDays, distance, serviceActive, walkSeconds } from './
 export interface Point { lat: number; lon: number; label: string }
 
 export type Leg =
-  | { type: 'walk'; from: Point; to: Point; dep: number; arr: number; meters: number }
+  | { type: 'walk'; from: Point; to: Point; dep: number; arr: number; meters: number; /** tracé par les rues (sinon : vol d'oiseau) */ geom?: [number, number][] }
   | { type: 'ride'; trip: Trip; date: string; fromPos: number; toPos: number; dep: number; arr: number; booking: boolean }
 
-export interface Journey { dep: number; arr: number; legs: Leg[]; transfers: number; walkMeters: number; hasBooking: boolean; key: string }
+export interface Journey { dep: number; arr: number; legs: Leg[]; transfers: number; walkMeters: number; hasBooking: boolean; key: string; /** marche de correspondance plus longue que prévu par les rues */ tightWalk?: boolean }
 
 export interface RouterOptions {
   includeScolaire: boolean
@@ -28,7 +28,7 @@ export interface RouterOptions {
   maxWalk?: number
 }
 
-export interface PlanResult { journeys: Journey[]; directWalk?: Journey; notes: string[] }
+export interface PlanResult { journeys: Journey[]; directWalk?: Journey; notes: string[]; /** marches recalculées sur les rues */ routedWalk?: boolean }
 
 interface Conn { dep: number; arr: number; from: number; to: number; trip: number; pos: number }
 
@@ -162,6 +162,8 @@ function scan(net: Network, conns: Conn[], tripDates: Map<number, string>, origi
     }
   }
   straighten(net, legs)
+  preferRide(net, legs, origin, dest, t0, maxWalk, s)
+  if (legs[0].type === 'ride') s = legs[0].trip.stops[legs[0].fromPos]
   const firstRide = legs.find(l => l.type === 'ride')
   const accessM = Math.round(distance(origin.lat, origin.lon, net.stops[s].lat, net.stops[s].lon) * 1.25)
   const accessSec = walkSeconds(accessM / 1.25)
@@ -169,6 +171,55 @@ function scan(net: Network, conns: Conn[], tripDates: Map<number, string>, origi
   legs.unshift({ type: 'walk', from: origin, to: P(s), dep: leave, arr: leave + accessSec, meters: accessM })
   // on « recale » les marches d'attente : départ au plus tard compatible
   return finalize(legs.filter(l => l.type === 'ride' || l.meters > 20 || l === legs[0]))
+}
+
+/** Poids de la marche face au temps passé dans le véhicule (usage : on préfère rester assis). */
+const WALK_WEIGHT = 2.5
+
+/**
+ * Le CSA cherche l'arrivée au plus tôt : il fait parfois marcher jusqu'à un arrêt plus lointain
+ * que le bus dessert de toute façon, ou descendre trop tôt pour finir à pied. Sur la même course,
+ * on choisit l'arrêt de montée (et de descente) qui minimise marche × WALK_WEIGHT + temps à bord.
+ * Les horaires restent ceux du GTFS ; l'arrivée peut reculer de quelques minutes contre moins de marche.
+ */
+function preferRide(net: Network, legs: Leg[], origin: Point, dest: Point, t0: number, maxWalk: number, _access: number) {
+  const rides = legs.filter(l => l.type === 'ride') as Extract<Leg, { type: 'ride' }>[]
+  if (!rides.length) return
+  const walkTo = (p: Point, s: number) => distance(p.lat, p.lon, net.stops[s].lat, net.stops[s].lon)
+  // montée : seulement si aucune marche de correspondance ne précède la première course
+  const first = rides[0]
+  if (legs[0] === first) {
+    const shift = first.dep - first.trip.dep[first.fromPos]
+    let best = first.fromPos, bestCost = Infinity
+    for (let p = 0; p < first.toPos; p++) {
+      const d = walkTo(origin, first.trip.stops[p])
+      if (d > maxWalk) continue
+      const dep = first.trip.dep[p] + shift
+      if (dep - walkSeconds(d) < t0 || p > first.fromPos) continue
+      const cost = walkSeconds(d) * WALK_WEIGHT + (first.dep - dep)
+      if (cost < bestCost - 1) { bestCost = cost; best = p }
+    }
+    if (best !== first.fromPos) legs[0] = { ...first, fromPos: best, dep: first.trip.dep[best] + shift }
+  }
+  // descente : la dernière course continue-t-elle plus près de la destination ?
+  const lastIdx = legs.length - 1 - [...legs].reverse().findIndex(l => l.type === 'ride')
+  const last = legs[lastIdx] as Extract<Leg, { type: 'ride' }>
+  const egress = legs[lastIdx + 1]
+  if (egress?.type !== 'walk' || lastIdx + 2 !== legs.length) return
+  const shift = last.arr - last.trip.arr[last.toPos]
+  const cost = (q: number) => (last.trip.arr[q] + shift - last.arr) + walkSeconds(walkTo(dest, last.trip.stops[q])) * WALK_WEIGHT
+  let best = last.toPos, bestCost = cost(last.toPos)
+  for (let q = last.fromPos + 1; q < last.trip.stops.length; q++) {
+    if (walkTo(dest, last.trip.stops[q]) > maxWalk) continue
+    const c = cost(q)
+    if (c < bestCost - 1) { bestCost = c; best = q }
+  }
+  if (best === last.toPos) return
+  const arr = last.trip.arr[best] + shift
+  const st = net.stops[last.trip.stops[best]]
+  const d = walkTo(dest, last.trip.stops[best])
+  legs[lastIdx] = { ...last, toPos: best, arr }
+  legs[lastIdx + 1] = { type: 'walk', from: { lat: st.lat, lon: st.lon, label: net.places[st.place].name }, to: dest, dep: arr, arr: arr + walkSeconds(d), meters: Math.round(d * 1.25) }
 }
 
 /**
@@ -218,7 +269,22 @@ function finalize(legs: Leg[]): Journey {
 
 /** Plusieurs options : on relance le scan juste après le premier embarquement de l'option précédente. */
 export function plan(net: Network, origin: Point, dest: Point, date: string, t0: number, opt: RouterOptions): PlanResult {
-  const maxWalk = opt.maxWalk ?? 1200
+  if (opt.maxWalk != null) return planWalk(net, origin, dest, date, t0, opt, opt.maxWalk)
+  // Marche courte d'abord (≈ 600 m réels). Une option à longue marche n'est gardée que si elle
+  // fait gagner plus d'un quart d'heure sur toutes les options à marche courte.
+  const SHORT = 500, LONG = 1200, GAIN = 15 * 60
+  const a = planWalk(net, origin, dest, date, t0, opt, SHORT)
+  const b = planWalk(net, origin, dest, date, t0, opt, LONG)
+  const keys = new Set(a.journeys.map(j => j.key))
+  const extra = b.journeys.filter(j => !keys.has(j.key) && a.journeys.every(o => o.arr > j.arr + GAIN))
+  return {
+    journeys: [...a.journeys, ...extra].sort((x, y) => x.arr - y.arr || y.dep - x.dep).slice(0, 6),
+    directWalk: a.directWalk ?? b.directWalk,
+    notes: a.journeys.length ? a.notes : b.notes,
+  }
+}
+
+function planWalk(net: Network, origin: Point, dest: Point, date: string, t0: number, opt: RouterOptions, maxWalk: number): PlanResult {
   const notes: string[] = []
   const journeys: Journey[] = []
   let directWalk: Journey | undefined
@@ -252,13 +318,15 @@ export function plan(net: Network, origin: Point, dest: Point, date: string, t0:
   // Variante sans train : le calcul « arrivée au plus tôt » ignore sinon un car direct plus lent
   // (ex. E03 Annonay → Valence) dès qu'un « car + TER » arrive avant lui à chaque itération.
   if (opt.includeTrain !== false && !opt._variant) {
-    const alt = plan(net, origin, dest, date, t0, { ...opt, includeTrain: false, _variant: true })
+    const alt = planWalk(net, origin, dest, date, t0, { ...opt, includeTrain: false, _variant: true }, maxWalk)
     const keys = new Set(journeys.map(j => j.key))
     // on ne garde de la variante que ce qui reste dans la même fenêtre horaire que les résultats principaux
     const horizon = journeys.length ? Math.max(...journeys.map(j => j.arr)) + 3600 : Infinity
     for (const j of alt.journeys) if (!keys.has(j.key) && j.arr <= horizon) journeys.push(j)
   }
-  const kept = journeys.filter(j => !journeys.some(o => o !== j && dominates(o, j)))
+  // à arrivée voisine (≤ 10 min), on écarte l'option qui fait marcher nettement plus (≥ 300 m)
+  const walkier = (o: Journey, j: Journey) => o.arr <= j.arr + 600 && o.transfers <= j.transfers && o.walkMeters + 300 <= j.walkMeters
+  const kept = journeys.filter(j => !journeys.some(o => o !== j && (dominates(o, j) || walkier(o, j))))
   return { journeys: kept.sort((a, b) => a.arr - b.arr || b.dep - a.dep).slice(0, 6), directWalk, notes }
 }
 

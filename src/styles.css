@@ -18,25 +18,7 @@
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1515;
-    --surface: #172020;
-    --surface-2: #1f2a2a;
-    --text: #eef3f2;
-    --muted: #9fb0ad;
-    --line: #2a3838;
-    --brand: #5fb3a8;
-    --brand-ink: #0b1616;
-    --accent: #fb923c;
-    --warn-bg: #3a2c12;
-    --warn-ink: #fcd58a;
-    --tad: #b9a3e8;
-    --tad-bg: #2a2340;
-    --shadow: 0 -6px 24px rgba(0, 0, 0, 0.5);
-    color-scheme: dark;
-  }
-}
+/* Thème sombre désactivé à la demande : l'application reste en clair. */
 
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
@@ -261,7 +243,6 @@ button.tip-row:hover { background: var(--surface-2); }
 .callout.train { background: color-mix(in srgb, #1e3a8a 9%, var(--surface)); gap: 10px; }
 .train-row { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
 .train-row svg { color: #1e3a8a; flex: none; margin-top: 2px; }
-@media (prefers-color-scheme: dark) { .train-row svg { color: #93c5fd; } }
 .tip-station { display: flex; gap: 8px; align-items: flex-start; padding: 6px; }
 .tip-station svg { color: #1e3a8a; flex: none; }
 .tip-pills { display: flex; flex-wrap: wrap; gap: 3px; max-width: 120px; flex: none; }
@@ -290,7 +271,6 @@ button.tip-row:hover { background: var(--surface-2); }
 .train-dest { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
 .train-dest strong { font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .train-dest small { color: var(--muted); font-size: 12px; }
-@media (prefers-color-scheme: dark) { .train-board-head svg { color: #93c5fd; } }
 
 /* ------------------------------------------------ aperçu de ligne (survol dans le panneau) */
 .route-preview { position: absolute; z-index: 5; top: calc(max(12px, env(safe-area-inset-top)) + 104px); right: 12px; width: min(340px, calc(100% - 24px));
