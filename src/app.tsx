@@ -1,6 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { Fares, Kind, Network, loadFares, loadNetwork, parisNow, distance } from './net'
+import { Fares, Kind, Network, Trip, loadFares, loadNetwork, parisNow, distance } from './net'
+import type { Journey } from './router'
 import { MapView, type Basemap } from './map'
 import { Icon, RoutePreview } from './ui'
 import { RoutePreviewCard } from './preview'
@@ -140,10 +141,19 @@ function Shell({ net }: { net: Network }) {
     setTab('trip')
   }
 
-  const highlightRoute = tab === 'explore' && detail?.kind === 'route' ? detail.id : null
+  // fiche ligne : le parcours de la course choisie est tracé seul, les autres variantes restent en retrait
+  const [routeTrip, setRouteTrip] = useState<{ trip: Trip; date: string } | null>(null)
+  const onRouteView = tab === 'explore' && detail?.kind === 'route'
+  const highlightRoute = onRouteView && !routeTrip ? detail.id : null
+  const tripJourney = useMemo<Journey | null>(() => {
+    if (!onRouteView || !routeTrip) return null
+    const t = routeTrip.trip, last = t.stops.length - 1
+    return { dep: t.dep[0], arr: t.arr[last], transfers: 0, walkMeters: 0, hasBooking: t.booking, key: `route:${t.i}`,
+      legs: [{ type: 'ride', trip: t, date: routeTrip.date, fromPos: 0, toPos: last, dep: t.dep[0], arr: t.arr[last], booking: t.booking }] }
+  }, [onRouteView, routeTrip])
   const journey = tab === 'trip' && trip.result && trip.selected != null
     ? (trip.selected === -1 ? trip.result.directWalk ?? null : trip.result.journeys[trip.selected] ?? null)
-    : null
+    : tripJourney
 
   // hauteur de la feuille → marges de la carte
   const [sheetH, setSheetH] = useState(0)
@@ -154,7 +164,7 @@ function Shell({ net }: { net: Network }) {
   let content: ComponentChildren
   if (tab === 'explore') {
     if (detail?.kind === 'place') content = <PlaceView key={detail.id} net={net} id={detail.id} now={now} pos={pos} fav={fav} toggleFav={toggle} onBack={back} onRoute={openRoute} onGo={goTo} onFrom={goFrom} />
-    else if (detail?.kind === 'route') content = <RouteView key={`${detail.id}-${detail.from ?? ''}-${detail.dir ?? ''}`} net={net} id={detail.id} fromPlace={detail.from} fromDir={detail.dir} now={now} fav={fav} toggleFav={toggle} onBack={back} onPlace={openPlace} />
+    else if (detail?.kind === 'route') content = <RouteView key={`${detail.id}-${detail.from ?? ''}-${detail.dir ?? ''}`} net={net} id={detail.id} fromPlace={detail.from} fromDir={detail.dir} now={now} fav={fav} toggleFav={toggle} onBack={back} onPlace={openPlace} onTrip={setRouteTrip} />
     else if (detail?.kind === 'sources') content = <SourcesView net={net} onBack={back} />
     else if (detail?.kind === 'fares' && fares) content = <FaresView net={net} fares={fares} onBack={back} />
     else content = <Explore net={net} now={now} pos={pos} fav={fav} onPlace={openPlace} onRoute={openRoute} onSearch={() => { setTrip(s => ({ ...s, focusTo: s.focusTo + 1 })); setTab('trip'); setSnap('full') }}

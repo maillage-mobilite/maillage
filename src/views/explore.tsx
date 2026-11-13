@@ -1,8 +1,8 @@
 // Onglet Explorer : « autour de moi », fiches arrêt et ligne.
 import { Fragment } from 'preact'
-import { useMemo, useState } from 'preact/hooks'
+import { useEffect, useMemo, useState } from 'preact/hooks'
 import {
-  Network, Kind, KIND_LABEL, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow, fmtDuration, routeKey, type Route
+  Network, Kind, KIND_LABEL, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow, fmtDuration, routeKey, type Route, type Trip
 } from '../net'
 import { Empty, Header, Icon, Pill, ReportLink, TheoNotice, When, usePreview } from '../ui'
 import { TrainBoard } from '../trains'
@@ -251,8 +251,10 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
   )
 }
 
-export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromPlace, fromDir }: {
+export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromPlace, fromDir, onTrip }: {
   net: Network; id: number; now: Now; fav: Favorites; toggleFav: (k: 'routes', key: string) => void; onBack: () => void; onPlace: (i: number) => void
+  /** Course affichée (son parcours est tracé seul sur la carte : une ligne a souvent plusieurs variantes). */
+  onTrip?: (t: { trip: Trip; date: string } | null) => void
   /** Pôle d'où l'on vient : la grille horaire est donnée à cet arrêt. */
   fromPlace?: number
   /** Sens du départ choisi (depuis une fiche arrêt). */
@@ -282,6 +284,8 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
   const [sel, setSel] = useState<number | null>(null)
   const row = rows[sel ?? nextIdx]
   const trip = row?.t ?? ref
+  useEffect(() => { onTrip?.(trip ? { trip, date } : null) }, [trip, date])
+  useEffect(() => () => onTrip?.(null), [])
   const key = routeKey(r)
   const isFav = fav.routes.includes(key)
   const booking = r.kind === 'tad' ? net.booking['tad'] : null
