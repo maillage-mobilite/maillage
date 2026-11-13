@@ -59,9 +59,9 @@ export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch }: {
 
       <section>
         <h3 class="section-title">Toutes les lignes</h3>
-        {(['urbain', 'tad', 'region', 'scolaire'] as Kind[]).map(k => (
+        {(['urbain', 'tad', 'region', 'scolaire', 'train'] as Kind[]).filter(k => net.routes.some(r => r.kind === k)).map(k => (
           <div class="line-group" key={k}>
-            <div class="line-group-label">{KIND_LABEL[k]}{k === 'scolaire' ? ' · ouverture au public à confirmer' : ''}</div>
+            <div class="line-group-label">{KIND_LABEL[k]}{k === 'scolaire' ? ' · ouverture au public à confirmer' : k === 'train' ? ' · en correspondance (SNCF)' : ''}</div>
             <div class="pills-wrap">
               {net.routes.filter(r => r.kind === k).map(r => (
                 <button key={r.i} class="pill-btn" onClick={() => onRoute(r.i)} aria-label={`Ligne ${r.short}, ${r.long}`}><Pill route={r} /></button>

@@ -1,7 +1,7 @@
 // Modèle de données du réseau + fonctions horaires (prochains départs, calendriers).
 // Toutes les heures sont en secondes depuis minuit, heure de Paris.
 
-export type Kind = 'urbain' | 'scolaire' | 'tad' | 'region'
+export type Kind = 'urbain' | 'scolaire' | 'tad' | 'region' | 'train'
 
 export interface Route { i: number; short: string; long: string; color: string; text: string; kind: Kind; agency: string }
 export interface Stop { i: number; name: string; lat: number; lon: number; place: number; feed: Kind }
@@ -194,7 +194,7 @@ export function nearestPlaces(net: Network, lat: number, lon: number, max = 6, r
     .slice(0, max)
 }
 
-export const KIND_LABEL: Record<Kind, string> = { urbain: 'Urbain', scolaire: 'Scolaire', tad: 'Transport à la demande', region: 'Car Région' }
+export const KIND_LABEL: Record<Kind, string> = { urbain: 'Urbain', scolaire: 'Scolaire', tad: 'Transport à la demande', region: 'Car Région', train: 'Train TER' }
 
 // ------------------------------------------------------------------ tarifs
 

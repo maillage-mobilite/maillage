@@ -184,10 +184,14 @@ def snap_to_roads(feats, cache_path, osrm_url, min_gap_m=250, max_ratio=2.2, min
         return haversine(a[1], a[0], b[1], b[0])
     requests_done, snapped_feats, kept = 0, 0, 0
     for f in feats:
+        if f["properties"].get("kind") == "train":
+            continue  # une voie ferrée ne suit pas les routes
         c = [tuple(x) for x in f["geometry"]["coordinates"]]
         # seuls les tracés majoritairement « en ligne droite » (flux sans vrai tracé) sont recalés :
         # un tracé réel simplifié contient légitimement de longs segments sur route rectiligne
-        if straight_share(c) < min_share:
+        length_km = sum(haversine(c[i][1], c[i][0], c[i + 1][1], c[i + 1][0]) for i in range(len(c) - 1)) / 1000
+        sparse = len(c) / max(length_km, 0.1) < 4  # un vrai tracé compte au moins ~5 points/km
+        if straight_share(c) < min_share and not sparse:
             continue
         out, i, changed = [c[0]], 0, False
         while i < len(c) - 1:
@@ -273,10 +277,14 @@ def main():
         agencies = {a.get("agency_id", ""): a["agency_name"] for a in g.rows("agency.txt")}
         excl = [s.lower() for s in feed.get("filter", {}).get("exclude_agency_contains", [])]
         radius = feed.get("filter", {}).get("serving_radius_km")
+        near_existing = feed.get("filter", {}).get("near_existing_stops_m")
 
+        stop_pat = feed.get("filter", {}).get("stop_id_contains")
         raw_stops = {}
         for s in g.rows("stops.txt"):
             if s.get("location_type", "0") not in ("", "0"):
+                continue
+            if stop_pat and stop_pat not in s["stop_id"]:
                 continue
             try:
                 lat, lon = float(s["stop_lat"]), float(s["stop_lon"])
@@ -309,6 +317,19 @@ def main():
                     touching.add(st["trip_id"])
             raw_trips = {k: v for k, v in raw_trips.items() if k in touching}
             log(f"  {len(raw_trips)} courses régionales desservent le territoire")
+        if near_existing:
+            # arrêts de ce flux à distance de marche d'un arrêt des flux déjà chargés (ex. gares SNCF)
+            existing = list(stops.values())
+            near = set()
+            for sid, (_, la, lo) in raw_stops.items():
+                if any(abs(la - e["lat"]) < 0.01 and haversine(la, lo, e["lat"], e["lon"]) <= near_existing for e in existing):
+                    near.add(sid)
+            touching = set()
+            for st in g.rows("stop_times.txt"):
+                if st["stop_id"] in near and st["trip_id"] in raw_trips:
+                    touching.add(st["trip_id"])
+            raw_trips = {k: v for k, v in raw_trips.items() if k in touching}
+            log(f"  {len(near)} gares en correspondance, {len(raw_trips)} trains les desservent")
 
         # horaires
         st_by_trip = defaultdict(list)
@@ -403,7 +424,7 @@ def main():
             r, ag = raw_routes[rid.split(":", 1)[1]]
             color = (r.get("route_color") or "").strip().upper()
             if not re.fullmatch(r"[0-9A-F]{6}", color):
-                color = {"region": "3F5873", "tad": "6B4FA0"}.get(kind, "4B5563")
+                color = {"region": "3F5873", "tad": "6B4FA0", "train": "1E3A8A"}.get(kind, "4B5563")
             short = (r.get("route_short_name") or "").replace("Ligne ", "").strip()
             long_ = nice_name(r.get("route_long_name") or "")
             long_ = re.sub(r"^(Ligne\s+(0?" + re.escape(short) + r"|\d+)\b|" + re.escape(short) + r"\b)\s*(-\s*)?", "", long_).strip() if short else long_
@@ -430,7 +451,7 @@ def main():
         rep["checks"] = {
             "lignes": len(used_routes), "courses_dans_fenetre": sum(1 for t in trips if t["route"].startswith(fid + ":")),
             "arrets_utilises": len(used_stops),
-            "arrets_inutilises_ecartes": max(0, len(raw_stops) - len(used_stops)) if not radius else None,
+            "arrets_inutilises_ecartes": max(0, len(raw_stops) - len(used_stops)) if not (radius or near_existing) else None,
         }
         rep["fixes"] = dict(rep["fixes"])
         feeds_report.append(rep)
@@ -472,7 +493,7 @@ def main():
     groups = defaultdict(list)
     for i in ids:
         groups[find(i)].append(i)
-    feed_rank = {"urbain": 0, "tad": 1, "scolaire": 2, "region": 3}
+    feed_rank = {"urbain": 0, "tad": 1, "scolaire": 2, "region": 3, "train": 4}
     places, place_of = [], {}
     for members in groups.values():
         names = Counter(stops[m]["name"] for m in members)
@@ -498,7 +519,8 @@ def main():
         if not os.path.exists(rpath) or time.time() - os.path.getmtime(rpath) > 7 * 86400:
             log("téléchargement des gares", rail["url"])
             json.dump(fetch_json(rail["url"]), open(rpath, "w"))
-        served_stops = [sid for sid in ids]  # tous les arrêts retenus sont desservis par au moins une course
+        # gares en correspondance avec le réseau de bus (on exclut les arrêts des flux ferroviaires eux-mêmes)
+        served_stops = [sid for sid in ids if stops[sid]["feed"] != "train"]
         for st in json.load(open(rpath)):
             pg = st.get("position_geographique") or {}
             if not pg:

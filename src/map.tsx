@@ -107,8 +107,8 @@ export function MapView(props: MapProps) {
         paint: {
           'line-color': ['get', 'color'],
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.2, 15, 4],
-          'line-opacity': ['match', ['get', 'kind'], 'scolaire', 0.3, 'region', 0.35, 0.9],
-          'line-dasharray': ['match', ['get', 'kind'], 'tad', ['literal', [1, 1.5]], ['literal', [1, 0]]],
+          'line-opacity': ['match', ['get', 'kind'], 'scolaire', 0.3, 'region', 0.35, 'train', 0.7, 0.9],
+          'line-dasharray': ['match', ['get', 'kind'], 'tad', ['literal', [1, 1.5]], 'train', ['literal', [3, 1.5]], ['literal', [1, 0]]],
         } })
       m.addLayer({ id: 'lines-hover', type: 'line', source: 'lines', filter: ['==', ['get', 'route'], -1],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -200,7 +200,7 @@ export function MapView(props: MapProps) {
       const m = map.current!
       const r = props.highlightRoute
       const dim = props.journey != null
-      const base: any = ['match', ['get', 'kind'], 'scolaire', 0.3, 'region', 0.35, 0.9]
+      const base: any = ['match', ['get', 'kind'], 'scolaire', 0.3, 'region', 0.35, 'train', 0.7, 0.9]
       const opacity: any = r != null ? ['case', ['==', ['get', 'route'], r], 1, 0.1] : dim ? 0.1 : base
       m.setPaintProperty('lines', 'line-opacity', opacity)
       m.setPaintProperty('lines-casing', 'line-opacity', r != null ? ['case', ['==', ['get', 'route'], r], 1, 0] : dim ? 0 : 0.9)
@@ -223,7 +223,8 @@ export function MapView(props: MapProps) {
     whenReady(() => {
       const m = map.current!
       const r = props.highlightRoute ?? -1
-      const lineKinds = props.kinds.filter((k): k is Kind => k !== 'gares')
+      // la puce « Trains » ('gares') pilote à la fois les gares et les lignes TER
+      const lineKinds = props.kinds.filter((k): k is Kind => k !== 'gares').concat(props.kinds.includes('gares') ? ['train'] : [])
       const kinds = ['literal', lineKinds] as any
       const vis = props.kinds.includes('gares') ? 'visible' : 'none'
       for (const l of ['stations-halo', 'stations', 'stations-label']) m.setLayoutProperty(l, 'visibility', vis)

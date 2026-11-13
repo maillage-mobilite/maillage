@@ -37,7 +37,7 @@ function useMapKinds() {
 /** Filtre de la carte : réseau local (urbain, TAD, scolaire) et cars Région. */
 function MapFilters({ net, kinds, toggle, setGroup }: { net: Network; kinds: MapKey[]; toggle: (k: MapKey) => void; setGroup: (g: MapKey[], on: boolean) => void }) {
   const local: Kind[] = ['urbain', 'tad', 'scolaire']
-  const labels: Record<MapKey, string> = { urbain: 'Urbain', tad: 'TAD', scolaire: 'Scolaire', region: 'Région', gares: 'Gares' }
+  const labels: Record<MapKey, string> = { urbain: 'Urbain', tad: 'TAD', scolaire: 'Scolaire', region: 'Région', train: 'Trains', gares: 'Trains' }
   const swatch = (k: MapKey) => (k === 'gares' ? '#1e3a8a' : net.routes.find(r => r.kind === k)?.color ?? '#888')
   const allLocal = local.every(k => kinds.includes(k))
   const chip = (k: MapKey) => (

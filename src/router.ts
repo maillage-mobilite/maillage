@@ -19,6 +19,8 @@ export interface Journey { dep: number; arr: number; legs: Leg[]; transfers: num
 export interface RouterOptions {
   includeScolaire: boolean
   includeTad: boolean
+  /** Trains TER en correspondance (par défaut : oui). */
+  includeTrain?: boolean
   /** Instant présent (pour le délai de réservation TAD). */
   now: { date: string; sec: number }
   maxWalk?: number
@@ -29,6 +31,7 @@ export interface PlanResult { journeys: Journey[]; directWalk?: Journey; notes: 
 interface Conn { dep: number; arr: number; from: number; to: number; trip: number; pos: number }
 
 const TRANSFER_SLACK = 60 // s, changement de véhicule au même arrêt
+const TRAIN_BOARDING = 5 * 60 // s, temps minimal pour monter dans un train (accès au quai)
 
 /** Délai de réservation TAD : la veille avant HH:MM. */
 export function tadBookable(net: Network, date: string, now: { date: string; sec: number }): boolean {
@@ -47,6 +50,7 @@ function connectionsFor(net: Network, date: string, opt: RouterOptions, tripDate
       const kind = net.routes[t.route].kind
       if (kind === 'scolaire' && !opt.includeScolaire) continue
       if (kind === 'tad' && !tadOk) continue
+      if (kind === 'train' && opt.includeTrain === false) continue
       if (!serviceActive(net, t.service, d)) continue
       if (shift && t.dep[t.dep.length - 1] < 86400) continue
       // identifiant de course "datée" : trip.i pour J, trip.i + nTrips pour J-1
@@ -65,7 +69,7 @@ const cache = new Map<string, { conns: Conn[]; tripDates: Map<number, string> }>
 
 function getConnections(net: Network, date: string, opt: RouterOptions) {
   const tadOk = opt.includeTad && tadBookable(net, date, opt.now)
-  const key = `${date}|${opt.includeScolaire}|${tadOk}`
+  const key = `${date}|${opt.includeScolaire}|${tadOk}|${opt.includeTrain !== false}`
   let c = cache.get(key)
   if (!c) {
     const tripDates = new Map<number, string>()
@@ -112,7 +116,8 @@ function scan(net: Network, conns: Conn[], tripDates: Map<number, string>, origi
     if (c.dep >= best) break
     const onTrip = boarded.has(c.trip)
     if (!onTrip) {
-      const ready = S[c.from] + (byVehicle[c.from] ? TRANSFER_SLACK : 0)
+      const isTrain = net.routes[net.trips[c.trip % net.trips.length].route].kind === 'train'
+      const ready = S[c.from] + (isTrain ? TRAIN_BOARDING : byVehicle[c.from] ? TRANSFER_SLACK : 0)
       if (ready > c.dep) continue
       if (byBooking[c.from] && net.trips[c.trip % net.trips.length].booking) continue
       boarded.set(c.trip, i)
@@ -154,6 +159,7 @@ function scan(net: Network, conns: Conn[], tripDates: Map<number, string>, origi
       s = j.from
     }
   }
+  straighten(net, legs)
   const firstRide = legs.find(l => l.type === 'ride')
   const accessM = Math.round(distance(origin.lat, origin.lon, net.stops[s].lat, net.stops[s].lon) * 1.25)
   const accessSec = walkSeconds(accessM / 1.25)
@@ -161,6 +167,38 @@ function scan(net: Network, conns: Conn[], tripDates: Map<number, string>, origi
   legs.unshift({ type: 'walk', from: origin, to: P(s), dep: leave, arr: leave + accessSec, meters: accessM })
   // on « recale » les marches d'attente : départ au plus tard compatible
   return finalize(legs.filter(l => l.type === 'ride' || l.meters > 20 || l === legs[0]))
+}
+
+/**
+ * Supprime les allers-retours : si une course empruntée plus loin dans le trajet passe aussi,
+ * plus tôt dans sa marche, par le pôle où l'on montait dans une course précédente, et à une heure
+ * où l'on y était déjà, on y monte directement (moins de correspondances, même arrivée).
+ * Corrige un artefact classique de l'extraction de trajets du CSA.
+ */
+function straighten(net: Network, legs: Leg[]) {
+  let changed = true
+  while (changed) {
+    changed = false
+    for (let k = 0; k < legs.length && !changed; k++) {
+      const B = legs[k]
+      if (B.type !== 'ride') continue
+      const shift = B.dep - B.trip.dep[B.fromPos]
+      for (let i = 0; i < k && !changed; i++) {
+        const A = legs[i]
+        if (A.type !== 'ride') continue
+        const placeA = net.stops[A.trip.stops[A.fromPos]].place
+        // n'importe quel passage de B au pôle de A avant la descente, à une heure où l'on y était déjà
+        for (let p = 0; p < B.toPos; p++) {
+          if (p === B.fromPos) continue
+          if (net.stops[B.trip.stops[p]].place === placeA && B.trip.dep[p] + shift >= A.dep) {
+            legs.splice(i, k - i + 1, { ...B, fromPos: p, dep: B.trip.dep[p] + shift })
+            changed = true
+            break
+          }
+        }
+      }
+    }
+  }
 }
 
 function finalize(legs: Leg[]): Journey {
@@ -203,7 +241,13 @@ export function plan(net: Network, origin: Point, dest: Point, date: string, t0:
   // on ne signale le délai TAD que s'il prive l'usager d'une option le jour demandé
   if (opt.includeTad && !tadBookable(net, date, opt.now) && (journeys.length === 0 || journeys[0].dep >= 86400)) notes.push("Le transport à la demande n'est plus réservable pour ce jour (réservation la veille avant 15 h).")
   // on retire les options dominées (arrive plus tard ou en même temps, part plus tôt, autant de correspondances)
-  const kept = journeys.filter(j => !journeys.some(o => o !== j && o.arr <= j.arr && o.dep >= j.dep && o.transfers <= j.transfers && (o.arr < j.arr || o.dep > j.dep || o.transfers < j.transfers)))
+  // Une correspondance évitée « vaut » 20 min de départ plus tôt : on écarte une option qui ne part
+  // que quelques minutes plus tard au prix de correspondances supplémentaires.
+  const PER_TRANSFER = 20 * 60
+  const dominates = (o: Journey, j: Journey) =>
+    o.arr <= j.arr && o.transfers <= j.transfers && o.dep + PER_TRANSFER * (j.transfers - o.transfers) >= j.dep &&
+    (o.arr < j.arr || o.dep > j.dep || o.transfers < j.transfers)
+  const kept = journeys.filter(j => !journeys.some(o => o !== j && dominates(o, j)))
   return { journeys: kept.sort((a, b) => a.arr - b.arr || b.dep - a.dep), directWalk, notes }
 }
 

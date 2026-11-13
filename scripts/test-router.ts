@@ -60,6 +60,17 @@ show(place('Gare Routière'), { lat: 45.2445, lon: 4.6637, label: 'Rue de Bourgo
 const d = departures(net, net.places.find(p => p.name === 'Gare Routière')!.stops, { date: DATE, sec: 8 * 3600 }, { limit: 6 })
 console.log('\nProchains départs Gare routière lundi 8 h :', d.map(x => `${net.routes[x.trip.route].short} ${fmtHM(x.time)} → ${x.trip.headsign}`).join(' · '))
 check(d.length > 0, 'aucun départ à la gare routière')
+// --- itinéraires car + train (TER intégrés au calcul)
+for (const q of ['Marseille Saint-Charles', 'Grenoble', 'Avignon Centre']) {
+  const dest = net.places.find(p => p.name.toLowerCase() === q.toLowerCase() || p.name.toLowerCase().startsWith(q.toLowerCase()))
+  if (!dest) { check(false, `pôle introuvable : ${q}`); continue }
+  const r = show(gare, { lat: dest.lat, lon: dest.lon, label: dest.name }, 7 * 3600)
+  check(r.journeys.some(j => j.legs.some(l => l.type === 'ride' && net.routes[l.trip.route].kind === 'train')), `aucun train proposé vers ${q}`)
+}
+const noTrain = plan(net, gare, (() => { const p = net.places.find(p => p.name.startsWith('Marseille'))!; return { lat: p.lat, lon: p.lon, label: p.name } })(), DATE, 7 * 3600,
+  { includeScolaire: false, includeTad: true, includeTrain: false, now })
+check(!noTrain.journeys.some(j => j.legs.some(l => l.type === 'ride' && net.routes[l.trip.route].kind === 'train')), 'option « sans train » ignorée')
+
 // --- trains en correspondance
 for (const st of net.stations) {
   // sur 7 jours à partir du début de la fenêtre : certaines gares n'ont qu'une desserte ponctuelle (Saint-Péray)

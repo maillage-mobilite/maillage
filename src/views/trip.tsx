@@ -15,6 +15,7 @@ export interface TripState {
   when: { date: string; sec: number } | null // null = maintenant
   scolaire: boolean
   tad: boolean
+  train: boolean
   result: PlanResult | null
   searchedAt: { date: string; sec: number } | null
   selected: number | null
@@ -22,7 +23,7 @@ export interface TripState {
   focusTo: number // incrémenté pour donner le focus au champ destination
 }
 
-export const initialTrip: TripState = { from: null, to: null, when: null, scolaire: false, tad: true, result: null, searchedAt: null, selected: null, booking: null, focusTo: 0 }
+export const initialTrip: TripState = { from: null, to: null, when: null, scolaire: false, tad: true, train: true, result: null, searchedAt: null, selected: null, booking: null, focusTo: 0 }
 
 function PlaceInput({ net, label, value, placeholder, onPick, near, autoFocusKey, allowMyPos }: {
   net: Network; label: string; value: Point | null; placeholder: string; onPick: (p: Point | null) => void
@@ -84,13 +85,13 @@ export function TripView({ net, now, pos, state, setState, fares }: {
     setBusy(true)
     setTimeout(() => {
       const at = s.when ?? now
-      const result = plan(net, s.from ?? myPos, s.to!, at.date, at.sec, { includeScolaire: s.scolaire, includeTad: s.tad, now })
+      const result = plan(net, s.from ?? myPos, s.to!, at.date, at.sec, { includeScolaire: s.scolaire, includeTad: s.tad, includeTrain: s.train, now })
       setState(st => ({ ...st, result, searchedAt: at, selected: null, booking: null }))
       setBusy(false)
     }, 10)
   }
   // relance automatique quand les paramètres changent
-  useEffect(() => { if (state.to) run(state) }, [state.from?.lat, state.from?.lon, state.to?.lat, state.to?.lon, state.when?.date, state.when?.sec, state.scolaire, state.tad])
+  useEffect(() => { if (state.to) run(state) }, [state.from?.lat, state.from?.lon, state.to?.lat, state.to?.lon, state.when?.date, state.when?.sec, state.scolaire, state.tad, state.train])
 
   if (state.booking != null && state.result) {
     return <TadBooking net={net} now={now} journey={state.result.journeys[state.booking]} date={state.searchedAt!.date}
@@ -130,6 +131,7 @@ export function TripView({ net, now, pos, state, setState, fares }: {
         </div>
         <div class="toggles">
           <label class="toggle"><input type="checkbox" checked={state.tad} onChange={e => setState(s => ({ ...s, tad: (e.target as HTMLInputElement).checked }))} /> Transport à la demande</label>
+          <label class="toggle"><input type="checkbox" checked={state.train} onChange={e => setState(s => ({ ...s, train: (e.target as HTMLInputElement).checked }))} /> Trains (TER)</label>
           <label class="toggle"><input type="checkbox" checked={state.scolaire} onChange={e => setState(s => ({ ...s, scolaire: (e.target as HTMLInputElement).checked }))} /> Lignes scolaires <small>(à confirmer)</small></label>
         </div>
       </div>
@@ -171,7 +173,7 @@ function Results({ net, now, res, at, fares, onOpen }: { net: Network; now: Now;
                 <div class="j-legs">{legIcons(net, j)}</div>
                 <div class="j-meta">
                   {day > 0 && <span class="badge">{fmtDay(addDays(at.date, day), now.date)}</span>}
-                  {isToday && day === 0 && inMin >= 0 && inMin <= 60 && <span class="leave">Partez dans {inMin} min</span>}
+                  {isToday && day === 0 && inMin >= 0 && inMin <= 60 && <span class="leave">{inMin <= 1 ? 'Partez maintenant' : `Partez dans ${inMin} min`}</span>}
                   <span class="muted">{j.transfers ? `${j.transfers} corresp.` : 'Direct'} · {j.walkMeters} m à pied</span>
                   {j.hasBooking && <span class="badge-tad">Réservation requise</span>}
                   {(() => { const p = fareEstimate(net, fares, j); return p && !p.region ? <span class="muted">· {p.text.split('= ')[1]}</span> : null })()}
@@ -208,9 +210,12 @@ function legLabel(net: Network, l: Leg) {
 export function fareEstimate(net: Network, fares: Fares | null, j: Journey): { text: string; region: boolean } | null {
   if (!fares) return null
   const rides = j.legs.filter(l => l.type === 'ride') as Extract<Leg, { type: 'ride' }>[]
-  const local = rides.filter(r => net.routes[r.trip.route].kind !== 'region')
-  const region = rides.length > local.length
-  if (!local.length) return region ? { text: 'Car Région : tarification Région', region } : null
+  const kindOf = (r: Extract<Leg, { type: 'ride' }>) => net.routes[r.trip.route].kind
+  const local = rides.filter(r => kindOf(r) !== 'region' && kindOf(r) !== 'train')
+  const region = rides.some(r => kindOf(r) === 'region')
+  const train = rides.some(r => kindOf(r) === 'train')
+  const extras = [region && 'car Région (tarif Région)', train && 'billet TER (tarif SNCF)'].filter(Boolean).join(' + ')
+  if (!local.length) return extras ? { text: extras.charAt(0).toUpperCase() + extras.slice(1), region: true } : null
   const tad = local.some(r => r.booking)
   const fare = fares.fares.find(f => f.name === (tad ? 'Ticket TAD' : 'Ticket unitaire'))
   if (!fare) return null
@@ -221,7 +226,7 @@ export function fareEstimate(net: Network, fares: Fares | null, j: Journey): { t
     used++
   }
   const text = `${tickets} × ${fare.name.toLowerCase()} = ${fmtEur(tickets * fare.price_eur)}`
-  return { text: region ? `${text} + car Région (tarif Région)` : text, region }
+  return { text: extras ? `${text} + ${extras}` : text, region: !!extras }
 }
 
 export function JourneyDetail({ net, now, journey, date, fares, onBack, onBook }: { net: Network; now: Now; journey: Journey; date: string; fares: Fares | null; onBack: () => void; onBook: () => void }) {

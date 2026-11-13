@@ -52,6 +52,13 @@
       "page": "https://transport.data.gouv.fr/datasets/agregat-oura",
       "licence": "ODbL",
       "filter": { "exclude_agency_contains": ["coqueligo"], "serving_radius_km": 6 }
+    },
+    {
+      "id": "train", "kind": "train", "name": "TER (SNCF) en correspondance",
+      "url": "https://www.data.gouv.fr/api/1/datasets/r/9ae758ec-cd7a-40cd-a890-bb3963224942",
+      "page": "https://transport.data.gouv.fr/datasets/horaires-sncf",
+      "licence": "ODbL",
+      "filter": { "stop_id_contains": "OCETrain TER-", "near_existing_stops_m": 500 }
     }
   ],
   "links": {
