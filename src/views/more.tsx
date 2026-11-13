@@ -1,6 +1,9 @@
 // Onglets Info trafic et Mes trajets (favoris, services, sources des données).
 import { Fares, Network, fmtEur } from '../net'
+import { useState } from 'preact/hooks'
 import { Empty, Header, Icon, Pill } from '../ui'
+import { LOCATION_META, type LocationKind, type SavedLocation } from '../store'
+import { PlaceInput } from './trip'
 import type { Favorites } from '../store'
 
 const FIX_LABELS: Record<string, string> = {
@@ -51,15 +54,66 @@ export function AlertsView({ net }: { net: Network }) {
   )
 }
 
-export function MeView({ net, fav, onPlace, onRoute, onSources, onFares, hasFares }: {
-  net: Network; fav: Favorites; onPlace: (i: number) => void; onRoute: (i: number) => void; onSources: () => void; onFares: () => void; hasFares: boolean
+/** Éditeur d'un lieu enregistré : recherche d'adresse / d'arrêt (et nom libre pour « Autre »). */
+function LocationEditor({ net, kind, current, near, onSave, onCancel }: {
+  net: Network; kind: LocationKind; current?: SavedLocation; near: { lat: number; lon: number }
+  onSave: (l: SavedLocation) => void; onCancel: () => void
 }) {
+  const [point, setPoint] = useState<{ lat: number; lon: number; label: string } | null>(current ? { lat: current.lat, lon: current.lon, label: current.label } : null)
+  const [name, setName] = useState(current?.name ?? (kind === 'other' ? '' : LOCATION_META[kind].name))
+  const ok = !!point && name.trim().length > 0
+  return (
+    <div class="loc-editor">
+      {kind === 'other' && <label class="field"><span>Nom du lieu</span><input value={name} placeholder="Ex. : Mamie, club de foot, marché…" onInput={e => setName((e.target as HTMLInputElement).value)} /></label>}
+      <PlaceInput net={net} label="Adresse ou arrêt" value={point} placeholder="Rechercher une adresse, un arrêt…" near={near} autoFocusKey={1}
+        onPick={p => p && setPoint(p)} />
+      <div class="actions">
+        <button class="btn primary" disabled={!ok} onClick={() => point && onSave({ id: current?.id ?? `${kind}-${Date.now()}`, kind, name: name.trim(), label: point.label, lat: point.lat, lon: point.lon })}>Enregistrer</button>
+        <button class="btn" onClick={onCancel}>Annuler</button>
+      </div>
+    </div>
+  )
+}
+
+export function MeView({ net, fav, near, onPlace, onRoute, onSources, onFares, hasFares, saveLocation, removeLocation }: {
+  net: Network; fav: Favorites; near: { lat: number; lon: number }; onPlace: (i: number) => void; onRoute: (i: number) => void; onSources: () => void; onFares: () => void; hasFares: boolean
+  saveLocation: (l: SavedLocation) => void; removeLocation: (id: string) => void
+}) {
+  const [editing, setEditing] = useState<{ kind: LocationKind; id?: string } | null>(null)
+  const slots: LocationKind[] = ['home', 'work', 'school']
+  const others = fav.locations.filter(l => l.kind === 'other')
+  const row = (kind: LocationKind, l?: SavedLocation) => {
+    const isEditing = editing && editing.kind === kind && editing.id === l?.id
+    if (isEditing) {
+      return <LocationEditor key={`e-${kind}-${l?.id ?? 'new'}`} net={net} kind={kind} current={l} near={near}
+        onSave={x => { saveLocation(x); setEditing(null) }} onCancel={() => setEditing(null)} />
+    }
+    return (
+      <div class="loc-row" key={`${kind}-${l?.id ?? 'empty'}`}>
+        <span class={`loc-icon${l ? '' : ' empty'}`}><Icon name={LOCATION_META[kind].icon} size={20} /></span>
+        <button class="loc-main" onClick={() => setEditing({ kind, id: l?.id })}>
+          <strong>{l?.name ?? LOCATION_META[kind].name}</strong>
+          <small>{l ? l.label : 'Définir'}</small>
+        </button>
+        {l && <button class="icon-btn" aria-label={`Retirer ${l.name}`} onClick={() => removeLocation(l.id)}><Icon name="close" size={18} /></button>}
+      </div>
+    )
+  }
   const places = net.places.filter(p => fav.places.includes(p.name))
   const routes = net.routes.filter(r => fav.routes.includes(`${r.kind}:${r.short}`))
   const L = net.tenant.links
   return (
     <div class="sheet-body">
       <Header title="Mes trajets" />
+      <section aria-labelledby="loc-title">
+        <h3 class="section-title" id="loc-title"><Icon name="home" size={16} /> Mes lieux</h3>
+        {slots.map(k => row(k, fav.locations.find(l => l.kind === k)))}
+        {others.map(l => row('other', l))}
+        {editing?.kind === 'other' && !editing.id
+          ? row('other')
+          : <button class="row-btn" onClick={() => setEditing({ kind: 'other' })}><Icon name="plus" size={18} /> Ajouter un autre lieu</button>}
+        <p class="small muted">Vos lieux restent sur ce téléphone. Ils apparaissent sur l'accueil avec le prochain trajet, et en raccourci dans l'itinéraire.</p>
+      </section>
       <section>
         <h3 class="section-title"><Icon name="star" size={16} filled /> Favoris</h3>
         {!places.length && !routes.length && <p class="muted">Touchez l'étoile d'un arrêt ou d'une ligne pour le retrouver ici. Les favoris restent sur votre téléphone : aucun compte nécessaire.</p>}

@@ -368,3 +368,21 @@ table.quality td { padding: 5px 4px; border-bottom: 1px solid var(--line); }
 .when-row select { flex: 1 1 100%; }
 .when-row input { flex: 1 1 100%; }
 @media (min-width: 900px) { .when-row select, .when-row input { flex: 1 1 45%; } }
+
+/* ------------------------------------------------ lieux enregistrés */
+.loc-row { display: flex; align-items: center; gap: 10px; min-height: 56px; border-bottom: 1px solid var(--line); }
+.loc-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--brand) 12%, var(--surface)); color: var(--brand); flex: none; }
+.loc-icon.empty { background: var(--surface-2); color: var(--muted); }
+.loc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; padding: 8px 0; min-height: 48px; justify-content: center; }
+.loc-main small { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loc-editor { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.loc-shortcuts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.loc-shortcuts:empty { display: none; }
+.chip.loc { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.chip.loc.add { border-style: dashed; color: var(--muted); font-weight: 500; }
+.loc-card { flex-direction: row; align-items: center; gap: 12px; text-align: left; }
+.loc-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.loc-next { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 14px; }
+.loc-pills { display: inline-flex; gap: 4px; }
+.loc-invite { color: var(--muted); font-size: 14px; border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }

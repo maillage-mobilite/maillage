@@ -2,10 +2,12 @@
 import { Fragment } from 'preact'
 import { useMemo, useState } from 'preact/hooks'
 import {
-  Network, Kind, KIND_LABEL, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow,
+  Network, Kind, KIND_LABEL, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow, fmtDuration
 } from '../net'
 import { Empty, Header, Icon, Pill, TheoNotice, When, usePreview } from '../ui'
 import { TrainBoard } from '../trains'
+import { plan, type Journey } from '../router'
+import { LOCATION_META, type SavedLocation } from '../store'
 import type { Favorites } from '../store'
 
 type Now = { date: string; sec: number }
@@ -39,8 +41,43 @@ function DepRow({ route, children, ...rest }: { route: number; children: any; cl
   return <div {...rest} onMouseEnter={h.onMouseEnter} onMouseLeave={h.onMouseLeave}>{children}</div>
 }
 
-export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch }: {
+/** Carte d'un lieu enregistré : meilleur trajet maintenant depuis la position. */
+function LocationCard({ net, loc, now, pos, onGo }: { net: Network; loc: SavedLocation; now: Now; pos: Pos; onGo: (l: SavedLocation) => void }) {
+  const minute = Math.floor(now.sec / 60)
+  const res = useMemo(() => {
+    if (distance(pos.lat, pos.lon, loc.lat, loc.lon) < 150) return { here: true as const }
+    const r = plan(net, { lat: pos.lat, lon: pos.lon, label: 'Ma position' }, { lat: loc.lat, lon: loc.lon, label: loc.name }, now.date, now.sec,
+      { includeScolaire: false, includeTad: true, now })
+    const best: Journey | undefined = [...r.journeys].sort((a, b) => a.arr - b.arr)[0]
+    return { best, walk: r.directWalk }
+  }, [net, loc.id, loc.lat, loc.lon, pos.lat, pos.lon, now.date, minute])
+  let body
+  if ('here' in res) body = <span class="muted">Vous y êtes</span>
+  else if (res.walk && (!res.best || res.walk.arr <= res.best.arr)) body = <span>À pied · <strong>{fmtDuration(res.walk.arr - res.walk.dep)}</strong></span>
+  else if (res.best) {
+    const inMin = Math.round((res.best.dep - now.sec) / 60)
+    const rides = res.best.legs.filter(l => l.type === 'ride') as any[]
+    const later = res.best.dep >= 86400
+    body = (
+      <span class="loc-next">
+        <span class={later ? 'muted' : 'leave'}>{later ? `Demain ${fmtHM(res.best.dep)}` : inMin <= 1 ? 'Partez maintenant' : inMin < 60 ? `Partez dans ${inMin} min` : `Départ ${fmtHM(res.best.dep)}`}</span>
+        <span class="loc-pills">{rides.slice(0, 3).map((l, k) => <Pill key={k} route={net.routes[l.trip.route]} small />)}</span>
+        <span class="muted">arrivée {fmtHM(res.best.arr)}</span>
+      </span>
+    )
+  } else body = <span class="muted">Pas de trajet dans les prochaines heures</span>
+  return (
+    <button class="card loc-card" onClick={() => onGo(loc)} aria-label={`Itinéraire vers ${loc.name}`}>
+      <span class="loc-icon"><Icon name={LOCATION_META[loc.kind].icon} size={20} /></span>
+      <span class="loc-body"><strong>{loc.name}</strong>{body}</span>
+      <Icon name="route" size={18} />
+    </button>
+  )
+}
+
+export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch, onGoLocation, onManageLocations }: {
   net: Network; now: Now; pos: Pos; fav: Favorites; onPlace: (i: number) => void; onRoute: (i: number) => void; onSearch: () => void
+  onGoLocation: (l: SavedLocation) => void; onManageLocations: () => void
 }) {
   const [showTrains, setShowTrains] = useState(false)
   // une pastille par numéro de ligne (le GTFS SNCF a plusieurs « routes » pour un même numéro)
@@ -60,6 +97,15 @@ export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch }: {
       </button>
       {pos.simulated && <p class="notice"><Icon name="locate" size={16} /> {pos.reason ?? 'Position simulée'} : départ affiché depuis la gare routière d'Annonay.</p>}
       {outOfData && <p class="notice warn">Les données chargées ne couvrent pas la date du jour. Relancez le pipeline (<code>npm run data</code>).</p>}
+
+      {fav.locations.length > 0 ? (
+        <section aria-labelledby="myloc-title">
+          <h3 class="section-title" id="myloc-title"><Icon name="home" size={16} /> Mes lieux</h3>
+          {fav.locations.slice(0, 4).map(l => <LocationCard key={l.id} net={net} loc={l} now={now} pos={pos} onGo={onGoLocation} />)}
+        </section>
+      ) : (
+        <button class="row-btn loc-invite" onClick={onManageLocations}><Icon name="home" size={18} /> Enregistrer domicile, travail ou école pour voir le prochain trajet ici</button>
+      )}
 
       {favPlaces.length > 0 && (
         <section>

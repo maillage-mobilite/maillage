@@ -5,6 +5,7 @@ import { Journey, Leg, PlanResult, Point, plan, planArriveBy, tadBookable } from
 import { Suggestion, searchAddress, searchLocal } from '../search'
 import { Empty, Header, Icon, Pill, TheoNotice } from '../ui'
 import { TrainRowView, connectingTrains } from '../trains'
+import { LOCATION_META, type SavedLocation } from '../store'
 import { distance, stationLabel } from '../net'
 
 type Now = { date: string; sec: number }
@@ -27,9 +28,14 @@ export interface TripState {
 
 export const initialTrip: TripState = { from: null, to: null, when: null, scolaire: false, tad: true, train: true, result: null, searchedAt: null, selected: null, booking: null, focusTo: 0, mode: 'depart' }
 
-function PlaceInput({ net, label, value, placeholder, onPick, near, autoFocusKey, allowMyPos }: {
+/** Lieu enregistré → point d'itinéraire. */
+export const locationPoint = (l: SavedLocation): Point => ({ lat: l.lat, lon: l.lon, label: l.name })
+
+export function PlaceInput({ net, label, value, placeholder, onPick, near, autoFocusKey, allowMyPos, saved = [] }: {
   net: Network; label: string; value: Point | null; placeholder: string; onPick: (p: Point | null) => void
   near: { lat: number; lon: number }; autoFocusKey?: number; allowMyPos?: boolean
+  /** Lieux enregistrés, proposés en premier. */
+  saved?: SavedLocation[]
 }) {
   const [q, setQ] = useState(value?.label ?? '')
   const [open, setOpen] = useState(false)
@@ -41,11 +47,13 @@ function PlaceInput({ net, label, value, placeholder, onPick, near, autoFocusKey
     if (!open) return
     const local = searchLocal(net, q, near).filter(s => s.kind === 'place' || s.kind === 'station')
     setSugg(local)
+    // une requête par champ, annulée si l'usager continue de taper ; une annulation ne vide pas la liste
+    const ctrl = new AbortController()
     const t = setTimeout(async () => {
-      const addr = await searchAddress(q, near)
-      setSugg([...local.slice(0, 4), ...addr])
+      const addr = await searchAddress(q, near, ctrl.signal)
+      if (addr && !ctrl.signal.aborted) setSugg([...local.slice(0, 4), ...addr])
     }, 250)
-    return () => clearTimeout(t)
+    return () => { clearTimeout(t); ctrl.abort() }
   }, [q, open])
   const pick = (s: Suggestion) => {
     onPick({ lat: s.lat!, lon: s.lon!, label: s.kind === 'address' ? `${s.label}, ${s.detail}` : s.label })
@@ -58,10 +66,16 @@ function PlaceInput({ net, label, value, placeholder, onPick, near, autoFocusKey
       <label for={id}>{label}</label>
       <input id={id} ref={input} value={q} placeholder={placeholder} autocomplete="off" role="combobox" aria-expanded={open}
         onInput={e => { setQ((e.target as HTMLInputElement).value); setOpen(true) }}
-        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 200)} />
+        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => { if (document.activeElement !== input.current) setOpen(false) }, 200)} />
       {open && (
         <ul class="suggest" role="listbox">
           {allowMyPos && <li><button onMouseDown={e => e.preventDefault()} onClick={() => { onPick(null); setQ(''); setOpen(false) }}><Icon name="locate" size={16} /> Ma position</button></li>}
+          {saved.filter(l => !q || q === value?.label || normalizeQ(`${l.name} ${l.label}`).includes(normalizeQ(q))).map(l => (
+            <li key={l.id}><button onMouseDown={e => e.preventDefault()} onClick={() => { onPick(locationPoint(l)); setOpen(false); input.current?.blur() }}>
+              <Icon name={LOCATION_META[l.kind].icon} size={16} />
+              <span><strong>{l.name}</strong><small>{l.label}</small></span>
+            </button></li>
+          ))}
           {sugg.map((s, k) => (
             <li key={k}><button onMouseDown={e => e.preventDefault()} onClick={() => pick(s)}>
               <Icon name={s.kind === 'address' ? 'map' : s.kind === 'station' ? 'train' : 'bus'} size={16} />
@@ -75,8 +89,11 @@ function PlaceInput({ net, label, value, placeholder, onPick, near, autoFocusKey
   )
 }
 
-export function TripView({ net, now, pos, state, setState, fares }: {
+const normalizeQ = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+export function TripView({ net, now, pos, state, setState, fares, saved = [], onManageLocations }: {
   net: Network; now: Now; pos: { lat: number; lon: number; simulated: boolean }; fares: Fares | null
+  saved?: SavedLocation[]; onManageLocations?: () => void
   state: TripState; setState: (u: (s: TripState) => TripState) => void
 }) {
   const [busy, setBusy] = useState(false)
@@ -112,12 +129,22 @@ export function TripView({ net, now, pos, state, setState, fares }: {
   return (
     <div class="sheet-body">
       <div class="trip-form">
-        <PlaceInput net={net} label="Départ" value={state.from ?? { ...myPos }} placeholder="Ma position" near={pos} allowMyPos
+        <PlaceInput net={net} label="Départ" value={state.from ?? { ...myPos }} placeholder="Ma position" near={pos} allowMyPos saved={saved}
           onPick={p => setState(s => ({ ...s, from: p }))} />
         <button class="icon-btn swap" aria-label="Inverser départ et arrivée"
           onClick={() => setState(s => ({ ...s, from: s.to, to: s.from ?? myPos }))}><Icon name="swap" /></button>
-        <PlaceInput net={net} label="Arrivée" value={state.to} placeholder="Adresse, arrêt, lieu…" near={pos} autoFocusKey={state.focusTo}
+        <PlaceInput net={net} label="Arrivée" value={state.to} placeholder="Adresse, arrêt, lieu…" near={pos} autoFocusKey={state.focusTo} saved={saved}
           onPick={p => setState(s => ({ ...s, to: p }))} />
+        <div class="loc-shortcuts" role="group" aria-label="Aller vers un lieu enregistré">
+          {saved.map(l => (
+            <button key={l.id} class={`chip loc${state.to?.lat === l.lat && state.to?.lon === l.lon ? ' on' : ''}`} onClick={() => setState(s => ({ ...s, to: locationPoint(l) }))}>
+              <Icon name={LOCATION_META[l.kind].icon} size={16} /> {l.name}
+            </button>
+          ))}
+          {onManageLocations && saved.length < 3 && (
+            <button class="chip loc add" onClick={onManageLocations}><Icon name="plus" size={16} /> {saved.length ? 'Ajouter un lieu' : 'Enregistrer domicile, travail…'}</button>
+          )}
+        </div>
         <div class="when-row">
           <select aria-label="Moment du trajet" value={!state.when ? 'now' : state.mode === 'arrive' ? 'arrive' : 'at'}
             onChange={e => {

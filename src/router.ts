@@ -21,6 +21,8 @@ export interface RouterOptions {
   includeTad: boolean
   /** Trains TER en correspondance (par défaut : oui). */
   includeTrain?: boolean
+  /** Usage interne : calcul d'une variante (évite la récursion). */
+  _variant?: boolean
   /** Instant présent (pour le délai de réservation TAD). */
   now: { date: string; sec: number }
   maxWalk?: number
@@ -247,8 +249,17 @@ export function plan(net: Network, origin: Point, dest: Point, date: string, t0:
   const dominates = (o: Journey, j: Journey) =>
     o.arr <= j.arr && o.transfers <= j.transfers && o.dep + PER_TRANSFER * (j.transfers - o.transfers) >= j.dep &&
     (o.arr < j.arr || o.dep > j.dep || o.transfers < j.transfers)
+  // Variante sans train : le calcul « arrivée au plus tôt » ignore sinon un car direct plus lent
+  // (ex. E03 Annonay → Valence) dès qu'un « car + TER » arrive avant lui à chaque itération.
+  if (opt.includeTrain !== false && !opt._variant) {
+    const alt = plan(net, origin, dest, date, t0, { ...opt, includeTrain: false, _variant: true })
+    const keys = new Set(journeys.map(j => j.key))
+    // on ne garde de la variante que ce qui reste dans la même fenêtre horaire que les résultats principaux
+    const horizon = journeys.length ? Math.max(...journeys.map(j => j.arr)) + 3600 : Infinity
+    for (const j of alt.journeys) if (!keys.has(j.key) && j.arr <= horizon) journeys.push(j)
+  }
   const kept = journeys.filter(j => !journeys.some(o => o !== j && dominates(o, j)))
-  return { journeys: kept.sort((a, b) => a.arr - b.arr || b.dep - a.dep), directWalk, notes }
+  return { journeys: kept.sort((a, b) => a.arr - b.arr || b.dep - a.dep).slice(0, 6), directWalk, notes }
 }
 
 function shift(j: Journey, base: number): Journey {

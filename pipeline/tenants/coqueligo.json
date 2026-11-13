@@ -22,8 +22,13 @@
   "match_to_roads": {
     "enabled": true,
     "osrm_url": "http://localhost:5055",
-    "kinds": ["urbain", "scolaire", "tad"],
+    "kinds": ["urbain", "scolaire", "tad", "region"],
     "note": "Moteur OSRM local, profil bus (pipeline/osrm/osrm.sh). Ignoré si le moteur n'est pas lancé."
+  },
+  "rail_route": {
+    "enabled": true,
+    "osrm_url": "http://localhost:5056",
+    "note": "Moteur OSRM local, profil rail (pipeline/osrm/osrm.sh prepare-rail / start-rail). Ignoré s'il n'est pas lancé."
   },
   "rail_timetables": {
     "name": "Réseau SNCF TGV, Intercités et TER (GTFS)",

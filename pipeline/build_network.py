@@ -304,6 +304,9 @@ def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, r
         if f["properties"].get("kind") not in kinds:
             continue
         orig = [tuple(x) for x in f["geometry"]["coordinates"]]
+        cum = [0.0]
+        for a_, b_ in zip(orig, orig[1:]):
+            cum.append(cum[-1] + haversine(a_[1], a_[0], b_[1], b_[0]))
         pts = resample(orig, step_m)
         new = []
         st = per_route[f["properties"]["route"]]
@@ -320,7 +323,22 @@ def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, r
                 except Exception:
                     r = {"code": "Error"}
                 if r.get("code") == "Ok" and r.get("matchings"):
-                    geom = [c for mm in r["matchings"] for c in mm["geometry"]["coordinates"]]
+                    # plusieurs « matchings » = trous dans l'appariement : on les relie par un itinéraire
+                    # routier, et non par une ligne droite (qui traverserait le bâti)
+                    geom = []
+                    for mm in r["matchings"]:
+                        part = mm["geometry"]["coordinates"]
+                        if geom and part:
+                            a_, b_ = geom[-1], part[0]
+                            if haversine(a_[1], a_[0], b_[1], b_[0]) > 40:
+                                try:
+                                    g = fetch_json(f"{osrm_url}/route/v1/driving/{a_[0]:.6f},{a_[1]:.6f};{b_[0]:.6f},{b_[1]:.6f}"
+                                                   "?overview=full&geometries=geojson")
+                                    if g.get("code") == "Ok":
+                                        geom += g["routes"][0]["geometry"]["coordinates"][1:-1]
+                                except Exception:
+                                    pass
+                        geom += part
                     matched = sum(1 for tp in r.get("tracepoints", []) if tp) / len(ch)
                     cache[key] = {"geom": geom, "matched": matched}
                 else:
@@ -331,13 +349,51 @@ def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, r
             if hit and hit["matched"] >= min_matched and len(hit["geom"]) >= 2:
                 L1 = sum(haversine(a[1], a[0], b[1], b[0]) for a, b in zip(hit["geom"], hit["geom"][1:]))
                 ok = min_ratio * L0 <= L1 <= max_ratio * L0 + 80
+            if not ok:
+                # plan B : itinéraire routier par les sommets d'origine du bloc (arrêts, points de tracé),
+                # utile quand le tracé publié est une ligne droite à travers le bâti (appariement impossible)
+                lo, hi = k * step_m, (k + len(ch) - 1) * step_m
+                via = [ch[0]] + [orig[i] for i in range(len(orig)) if lo < cum[i] < hi] + [ch[-1]]
+                key2 = "route:" + hashlib.md5(";".join(f"{x:.5f},{y:.5f}" for x, y in via).encode()).hexdigest()
+                if key2 not in cache:
+                    try:
+                        r2 = fetch_json(f"{osrm_url}/route/v1/driving/" + ";".join(f"{x:.6f},{y:.6f}" for x, y in via) +
+                                        "?overview=full&geometries=geojson&continue_straight=true&radiuses=" + ";".join(["60"] * len(via)))
+                        rt = r2["routes"][0] if r2.get("code") == "Ok" else None
+                        cache[key2] = {"geom": rt["geometry"]["coordinates"], "dist": rt["distance"]} if rt else None
+                    except Exception:
+                        cache[key2] = None
+                h2 = cache[key2]
+                if h2 and min_ratio * L0 <= h2["dist"] <= 3.0 * L0 + 150:  # le tracé publié coupait à travers le bâti
+                    hit, ok = {"geom": h2["geom"]}, True
             seg = [tuple(c) for c in hit["geom"]] if ok else ch
             st["blocks"] += 1
             st["kept"] += 0 if ok else 1
             new += seg if not new else seg[1:]
+        # réparation finale : un segment droit > 400 m restant (bloc non apparié, trou) devient l'itinéraire routier
+        if len(new) >= 2:
+            fixed = [new[0]]
+            for a_, b_ in zip(new, new[1:]):
+                L = haversine(a_[1], a_[0], b_[1], b_[0])
+                if L > 400:
+                    k3 = f"fix:{a_[0]:.5f},{a_[1]:.5f};{b_[0]:.5f},{b_[1]:.5f}"
+                    if k3 not in cache:
+                        try:
+                            g = fetch_json(f"{osrm_url}/route/v1/driving/{a_[0]:.6f},{a_[1]:.6f};{b_[0]:.6f},{b_[1]:.6f}"
+                                           "?overview=full&geometries=geojson&radiuses=40;40")
+                            rt = g["routes"][0] if g.get("code") == "Ok" else None
+                            cache[k3] = {"geom": rt["geometry"]["coordinates"], "dist": rt["distance"]} if rt else None
+                        except Exception:
+                            cache[k3] = None
+                    h3 = cache[k3]
+                    if h3 and h3["dist"] <= min(3.0 * L, L + 2500):
+                        fixed += [tuple(c) for c in h3["geom"]][1:-1]
+                        st["repaired"] = st.get("repaired", 0) + 1
+                fixed.append(b_)
+            new = fixed
         if len(new) >= 2:
             st["dev"] += deviations(resample(orig, 30.0), new)
-            f["geometry"]["coordinates"] = simplify([(round(x, 6), round(y, 6)) for x, y in new], 2.0)
+            f["geometry"]["coordinates"] = simplify([(round(x, 5), round(y, 5)) for x, y in new], 3.5)
             f["properties"]["matched"] = 1
         done += 1
         if done % 25 == 0:
@@ -349,8 +405,77 @@ def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, r
         d = sorted(st["dev"]) or [0.0]
         report[route] = {"median_m": round(d[len(d) // 2], 1), "p95_m": round(d[int(len(d) * 0.95)], 1),
                          "max_m": round(d[-1], 1), "blocks": st["blocks"], "kept_original": st["kept"]}
-    log(f"appariement : {done} tracés appariés, {sum(v['kept_original'] for v in report.values())} blocs conservés tels quels")
+    repaired = sum(st.get("repaired", 0) for st in per_route.values())
+    log(f"appariement : {done} tracés appariés, {sum(v['kept_original'] for v in report.values())} blocs conservés tels quels, {repaired} segments droits réparés")
     return report
+
+
+# ---------------------------------------------------------------- tracés ferroviaires
+
+def rail_route(feats, osrm_url, cache_path, radius=500, max_ratio=1.6, chunk=100):
+    """
+    Trace chaque ligne de train de gare en gare sur les voies ferrées OSM (moteur OSRM au profil
+    « rail »). Garde-fou : si la route fait plus de max_ratio × la ligne droite, on garde l'original.
+    """
+    import hashlib
+    try:
+        fetch_json(f"{osrm_url}/nearest/v1/driving/4.79,45.37")
+    except Exception as e:
+        log(f"tracés ferroviaires : moteur OSRM rail injoignable à {osrm_url} ({e}) — étape ignorée")
+        return None
+    cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
+    done = kept = 0
+    for f in feats:
+        if f["properties"].get("kind") != "train":
+            continue
+        stations = [tuple(x) for x in f["geometry"]["coordinates"]]
+        out = []
+        for k in range(0, max(1, len(stations) - 1), chunk - 1):
+            ch = stations[k:k + chunk]
+            if len(ch) < 2:
+                break
+            key = hashlib.md5(("rail:" + ";".join(f"{x:.5f},{y:.5f}" for x, y in ch)).encode()).hexdigest()
+            if key not in cache:
+                url = (f"{osrm_url}/route/v1/driving/" + ";".join(f"{x:.6f},{y:.6f}" for x, y in ch) +
+                       "?overview=full&geometries=geojson&continue_straight=true&radiuses=" + ";".join([str(radius)] * len(ch)))
+                try:
+                    r = fetch_json(url)
+                    rt = r["routes"][0] if r.get("code") == "Ok" else None
+                    cache[key] = {"geom": rt["geometry"]["coordinates"], "dist": rt["distance"]} if rt else None
+                except Exception:
+                    cache[key] = None
+            hit = cache[key]
+            straight = sum(haversine(a[1], a[0], b[1], b[0]) for a, b in zip(ch, ch[1:]))
+            if hit and hit["dist"] <= max_ratio * straight + 3000:
+                seg = [tuple(c) for c in hit["geom"]]
+            else:
+                # échec global (gare hors de l'extrait OSM, par ex.) : on route gare par gare,
+                # les tronçons impossibles restent droits
+                seg = [ch[0]]
+                for a_, b_ in zip(ch, ch[1:]):
+                    k2 = hashlib.md5((f"rail2:{a_[0]:.5f},{a_[1]:.5f};{b_[0]:.5f},{b_[1]:.5f}").encode()).hexdigest()
+                    if k2 not in cache:
+                        try:
+                            r = fetch_json(f"{osrm_url}/route/v1/driving/{a_[0]:.6f},{a_[1]:.6f};{b_[0]:.6f},{b_[1]:.6f}"
+                                           f"?overview=full&geometries=geojson&radiuses={radius};{radius}")
+                            rt = r["routes"][0] if r.get("code") == "Ok" else None
+                            cache[k2] = {"geom": rt["geometry"]["coordinates"], "dist": rt["distance"]} if rt else None
+                        except Exception:
+                            cache[k2] = None
+                    h2 = cache[k2]
+                    if h2 and h2["dist"] <= max_ratio * haversine(a_[1], a_[0], b_[1], b_[0]) + 3000:
+                        seg += [tuple(c) for c in h2["geom"]][1:]
+                    else:
+                        seg.append(b_)
+                        kept += 1
+            out += seg if not out else seg[1:]
+        if len(out) >= 2:
+            f["geometry"]["coordinates"] = simplify([(round(x, 5), round(y, 5)) for x, y in out], 12.0)
+            f["properties"]["railed"] = 1
+        done += 1
+    json.dump(cache, open(cache_path, "w"))
+    log(f"tracés ferroviaires : {done} lignes TER tracées sur les voies, {kept} tronçons entre gares laissés droits (hors de l'extrait OSM)")
+    return {"routed_features": done, "kept_straight": kept}
 
 # ---------------------------------------------------------------- portions à sens unique
 
@@ -860,6 +985,12 @@ def main():
     snap_cfg = cfg.get("snap_to_roads")
     if snap_cfg and snap_cfg.get("enabled") and not args.no_snap:
         out["shapes"] = snap_to_roads(feats, os.path.join(args.cache, "osrm-cache.json"), snap_cfg["osrm_url"].rstrip("/"))
+    # trains : tracés de gare en gare sur les voies ferrées (moteur OSRM local, profil rail)
+    rail_cfg = cfg.get("rail_route")
+    if rail_cfg and rail_cfg.get("enabled") and not args.no_snap:
+        rr = rail_route(feats, rail_cfg["osrm_url"].rstrip("/"), os.path.join(args.cache, "osrm-rail-cache.json"))
+        if rr:
+            out["rail_shapes"] = rr
     # appariement fin sur la chaussée (moteur OSRM local, profil bus), prioritaire pour le réseau du territoire
     match_cfg = cfg.get("match_to_roads")
     if match_cfg and match_cfg.get("enabled") and not args.no_snap:

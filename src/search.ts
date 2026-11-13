@@ -39,15 +39,12 @@ export function searchLocal(net: Network, q: string, near?: { lat: number; lon: 
   return out.sort((a, b) => a.score - b.score).slice(0, 6)
 }
 
-let controller: AbortController | null = null
-
-export async function searchAddress(q: string, near: { lat: number; lon: number }): Promise<Suggestion[]> {
+/** Recherche d'adresses (BAN). Renvoie null si la requête a été annulée (frappe suivante). */
+export async function searchAddress(q: string, near: { lat: number; lon: number }, signal?: AbortSignal): Promise<Suggestion[] | null> {
   if (q.trim().length < 3) return []
-  controller?.abort()
-  controller = new AbortController()
   const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=5&lat=${near.lat}&lon=${near.lon}`
   try {
-    const res = await fetch(url, { signal: controller.signal })
+    const res = await fetch(url, { signal })
     if (!res.ok) return []
     const json = await res.json()
     return json.features.map((f: any) => ({
@@ -57,7 +54,7 @@ export async function searchAddress(q: string, near: { lat: number; lon: number 
       lon: f.geometry.coordinates[0],
       lat: f.geometry.coordinates[1],
     }))
-  } catch {
-    return []
+  } catch (e) {
+    return (e as Error)?.name === 'AbortError' ? null : []
   }
 }

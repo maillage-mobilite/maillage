@@ -91,7 +91,7 @@ function Shell({ net }: { net: Network }) {
 
   const [fares, setFares] = useState<Fares | null>(null)
   useEffect(() => { loadFares().then(setFares) }, [])
-  const { fav, toggle } = useFavorites()
+  const { fav, toggle, saveLocation, removeLocation } = useFavorites()
   const mapKinds = useMapKinds()
   const [basemap, setBasemapState] = useState<Basemap>(() => {
     try { const v = localStorage.getItem('maillage:basemap'); if (v === 'plan' || v === 'satellite' || v === 'velo') return v } catch { /* stockage indisponible */ }
@@ -128,6 +128,12 @@ function Shell({ net }: { net: Network }) {
     setTrip(s => ({ ...s, to: { lat: p.lat, lon: p.lon, label: p.name } }))
     setTab('trip')
   }
+  const goLocation = (l: { lat: number; lon: number; name: string }) => {
+    setTrip(s => ({ ...s, from: null, to: { lat: l.lat, lon: l.lon, label: l.name }, when: null, mode: 'depart', selected: null, booking: null }))
+    setTab('trip')
+    if (snap === 'peek') setSnap('half')
+  }
+  const manageLocations = () => { setStack([]); setTab('me') }
   const goFrom = (i: number) => {
     const p = net.places[i]
     setTrip(s => ({ ...s, from: { lat: p.lat, lon: p.lon, label: p.name }, focusTo: s.to ? s.focusTo : s.focusTo + 1 }))
@@ -151,10 +157,11 @@ function Shell({ net }: { net: Network }) {
     else if (detail?.kind === 'route') content = <RouteView key={`${detail.id}-${detail.from ?? ''}-${detail.dir ?? ''}`} net={net} id={detail.id} fromPlace={detail.from} fromDir={detail.dir} now={now} fav={fav} toggleFav={toggle} onBack={back} onPlace={openPlace} />
     else if (detail?.kind === 'sources') content = <SourcesView net={net} onBack={back} />
     else if (detail?.kind === 'fares' && fares) content = <FaresView net={net} fares={fares} onBack={back} />
-    else content = <Explore net={net} now={now} pos={pos} fav={fav} onPlace={openPlace} onRoute={openRoute} onSearch={() => { setTrip(s => ({ ...s, focusTo: s.focusTo + 1 })); setTab('trip'); setSnap('full') }} />
-  } else if (tab === 'trip') content = <TripView net={net} now={now} pos={pos} state={trip} setState={setTrip} fares={fares} />
+    else content = <Explore net={net} now={now} pos={pos} fav={fav} onPlace={openPlace} onRoute={openRoute} onSearch={() => { setTrip(s => ({ ...s, focusTo: s.focusTo + 1 })); setTab('trip'); setSnap('full') }}
+      onGoLocation={goLocation} onManageLocations={manageLocations} />
+  } else if (tab === 'trip') content = <TripView net={net} now={now} pos={pos} state={trip} setState={setTrip} fares={fares} saved={fav.locations} onManageLocations={manageLocations} />
   else if (tab === 'alerts') content = <AlertsView net={net} />
-  else content = <MeView net={net} fav={fav} onPlace={openPlace} onRoute={openRoute} onSources={() => push({ kind: 'sources' })} onFares={() => push({ kind: 'fares' })} hasFares={!!fares} />
+  else content = <MeView net={net} fav={fav} near={pos} saveLocation={saveLocation} removeLocation={removeLocation} onPlace={openPlace} onRoute={openRoute} onSources={() => push({ kind: 'sources' })} onFares={() => push({ kind: 'fares' })} hasFares={!!fares} />
 
   const switchTab = (t: Tab) => {
     if (t === tab && t === 'explore') setStack([])
