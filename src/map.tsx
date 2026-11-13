@@ -12,6 +12,8 @@ export interface MapProps {
   net: Network
   user: { lat: number; lon: number; simulated: boolean } | null
   highlightRoute: number | null
+  /** Ligne survolée dans le panneau : mise en évidence sans recadrage. */
+  previewRoute: number | null
   journey: Journey | null
   focus: { lat: number; lon: number; zoom?: number; key: number } | null
   padding: { top: number; bottom: number; left: number }
@@ -48,6 +50,29 @@ function linesAt(m: MLMap, x: number, y: number, tol = 7): HoverItem[] {
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 
+/**
+ * Chevron « > » blanc cerné de sombre, orienté vers +x : la couche le fait suivre le sens du tracé.
+ * Lisible sur toutes les couleurs de ligne (pas de recoloration SDF, qui dégradait le dessin).
+ */
+function arrowImage(px = 48) {
+  const c = document.createElement('canvas')
+  c.width = c.height = px
+  const g = c.getContext('2d')!
+  const chevron = () => { g.beginPath(); g.moveTo(px * 0.34, px * 0.22); g.lineTo(px * 0.68, px * 0.5); g.lineTo(px * 0.34, px * 0.78); g.stroke() }
+  g.lineCap = 'round'
+  g.lineJoin = 'round'
+  g.strokeStyle = 'rgba(17, 24, 39, 0.85)'
+  g.lineWidth = px * 0.24
+  chevron()
+  g.strokeStyle = '#ffffff'
+  g.lineWidth = px * 0.11
+  chevron()
+  return g.getImageData(0, 0, px, px)
+}
+
+/** Opacité des tracés selon leur type (réutilisée pour les flèches). */
+const KIND_OPACITY: any = ['match', ['get', 'kind'], 'scolaire', 0.3, 'region', 0.35, 'train', 0.7, 0.9]
+
 export function MapView(props: MapProps) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<MLMap | null>(null)
@@ -57,6 +82,7 @@ export function MapView(props: MapProps) {
   onPlace.current = props.onPlace
   const [hover, setHover] = useState<Hover | null>(null)
   const hoverRef = useRef<Hover | null>(null)
+  const fittedFor = useRef<number | null>(null)
   hoverRef.current = hover
 
   const whenReady = (fn: () => void) => (ready.current ? fn() : pending.current.push(fn))
@@ -80,6 +106,8 @@ export function MapView(props: MapProps) {
     if (import.meta.env.DEV) (window as any).__map = m
     m.on('load', () => {
       m.addSource('lines', { type: 'geojson', data: `${import.meta.env.BASE_URL}data/lines.geojson` })
+      // portions où l'aller et le retour d'une ligne ne suivent pas le même chemin (calculées par le pipeline)
+      m.addSource('oneway', { type: 'geojson', data: `${import.meta.env.BASE_URL}data/oneway.geojson` })
       m.addSource('places', {
         type: 'geojson',
         data: {
@@ -110,9 +138,26 @@ export function MapView(props: MapProps) {
           'line-opacity': ['match', ['get', 'kind'], 'scolaire', 0.3, 'region', 0.35, 'train', 0.7, 0.9],
           'line-dasharray': ['match', ['get', 'kind'], 'tad', ['literal', [1, 1.5]], 'train', ['literal', [3, 1.5]], ['literal', [1, 0]]],
         } })
+      m.addImage('maillage-arrow', arrowImage(), { pixelRatio: 2 }) // nom propre : le fond de carte a déjà une icône « arrow »
+      // sens de circulation, uniquement là où l'aller et le retour diffèrent ; discret
+      m.addLayer({ id: 'lines-arrows', type: 'symbol', source: 'oneway', minzoom: 13.5,
+        layout: {
+          'symbol-placement': 'line', 'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 13.5, 260, 17, 180],
+          'icon-image': 'maillage-arrow', 'icon-size': ['interpolate', ['linear'], ['zoom'], 13.5, 0.5, 17, 0.72],
+          'icon-allow-overlap': false, 'icon-padding': 6, 'icon-rotation-alignment': 'map', 'icon-keep-upright': false,
+        },
+        paint: { 'icon-opacity': 0.9 } })
       m.addLayer({ id: 'lines-hover', type: 'line', source: 'lines', filter: ['==', ['get', 'route'], -1],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 15, 8], 'line-opacity': 1 } })
+      // ligne survolée ou sélectionnée : mêmes portions, un peu plus visibles et à tous les zooms
+      m.addLayer({ id: 'lines-focus-arrows', type: 'symbol', source: 'oneway', filter: ['==', ['get', 'route'], -1],
+        layout: {
+          'symbol-placement': 'line', 'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 9, 140, 16, 110],
+          'icon-image': 'maillage-arrow', 'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.45, 15, 0.7],
+          'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-rotation-alignment': 'map', 'icon-keep-upright': false,
+        },
+        paint: {} })
       m.addLayer({ id: 'places', type: 'circle', source: 'places', minzoom: 11,
         filter: ['any', ['>=', ['zoom'], 13.5], ['==', ['get', 'core'], 1]],
         paint: {
@@ -137,6 +182,13 @@ export function MapView(props: MapProps) {
         layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 10 } })
       m.addLayer({ id: 'journey-ride', type: 'line', source: 'journey', filter: ['==', ['get', 'type'], 'ride'],
         layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': 6 } })
+      m.addLayer({ id: 'journey-arrows', type: 'symbol', source: 'journey', filter: ['==', ['get', 'type'], 'ride'],
+        layout: {
+          'symbol-placement': 'line', 'symbol-spacing': 160, 'icon-image': 'maillage-arrow',
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.45, 15, 0.65],
+          'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-rotation-alignment': 'map', 'icon-keep-upright': false,
+        },
+        paint: {} })
       m.addLayer({ id: 'journey-stops', type: 'circle', source: 'journey', filter: ['==', ['geometry-type'], 'Point'],
         paint: { 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-width': 3, 'circle-stroke-color': ['get', 'color'] } })
       m.addLayer({ id: 'user-halo', type: 'circle', source: 'user', paint: { 'circle-radius': 18, 'circle-color': '#2563eb', 'circle-opacity': 0.15 } })
@@ -198,31 +250,36 @@ export function MapView(props: MapProps) {
   useEffect(() => {
     whenReady(() => {
       const m = map.current!
-      const r = props.highlightRoute
-      const dim = props.journey != null
-      const base: any = ['match', ['get', 'kind'], 'scolaire', 0.3, 'region', 0.35, 'train', 0.7, 0.9]
+      const r = props.previewRoute ?? props.highlightRoute
+      const dim = props.journey != null && props.previewRoute == null
+      const base: any = KIND_OPACITY
       const opacity: any = r != null ? ['case', ['==', ['get', 'route'], r], 1, 0.1] : dim ? 0.1 : base
       m.setPaintProperty('lines', 'line-opacity', opacity)
+      m.setPaintProperty('lines-arrows', 'icon-opacity', r != null ? ['case', ['==', ['get', 'route'], r], 0.9, 0.15] : dim ? 0.15 : 0.9)
       m.setPaintProperty('lines-casing', 'line-opacity', r != null ? ['case', ['==', ['get', 'route'], r], 1, 0] : dim ? 0 : 0.9)
       m.setPaintProperty('places', 'circle-opacity', dim ? 0.3 : 1)
       m.setPaintProperty('places', 'circle-stroke-opacity', dim ? 0.3 : 1)
       m.setPaintProperty('lines', 'line-width', r == null
         ? ['interpolate', ['linear'], ['zoom'], 10, ['match', ['get', 'kind'], 'region', 0.8, 1.2], 15, ['match', ['get', 'kind'], 'region', 2.5, 4]]
-        : ['case', ['==', ['get', 'route'], r], ['interpolate', ['linear'], ['zoom'], 10, 3, 15, 7], 1])
-      if (r != null) {
+        // le zoom doit rester au premier niveau de l'expression : la condition va dans chaque palier
+        : ['interpolate', ['linear'], ['zoom'], 10, ['case', ['==', ['get', 'route'], r], 3, 0.8], 15, ['case', ['==', ['get', 'route'], r], 7, 2]])
+      if (props.highlightRoute != null && fittedFor.current !== props.highlightRoute) {
+        fittedFor.current = props.highlightRoute
+        const r = props.highlightRoute
         const b = new LngLatBounds()
         let n = 0
         for (const t of props.net.trips) if (t.route === r) for (const s of t.stops) { b.extend([props.net.stops[s].lon, props.net.stops[s].lat]); n++ }
         if (n) m.fitBounds(b as LngLatBoundsLike, { maxZoom: 14.5, duration: 600 })
       }
+      if (props.highlightRoute == null) fittedFor.current = null
     })
-  }, [props.highlightRoute, props.journey])
+  }, [props.highlightRoute, props.previewRoute, props.journey])
 
   // filtre par type de ligne (la ligne mise en évidence reste toujours visible)
   useEffect(() => {
     whenReady(() => {
       const m = map.current!
-      const r = props.highlightRoute ?? -1
+      const r = props.previewRoute ?? props.highlightRoute ?? -1
       // la puce « Trains » ('gares') pilote à la fois les gares et les lignes TER
       const lineKinds = props.kinds.filter((k): k is Kind => k !== 'gares').concat(props.kinds.includes('gares') ? ['train'] : [])
       const kinds = ['literal', lineKinds] as any
@@ -231,20 +288,23 @@ export function MapView(props: MapProps) {
       const lineFilter: any = ['any', ['in', ['get', 'kind'], kinds], ['==', ['get', 'route'], r]]
       m.setFilter('lines', lineFilter)
       m.setFilter('lines-casing', lineFilter)
+      m.setFilter('lines-arrows', lineFilter)
       const served: any = lineKinds.length ? ['any', ...lineKinds.map(k => ['in', k, ['get', 'feeds']])] : false
       m.setFilter('places', ['all', ['any', ['>=', ['zoom'], 13.5], ['==', ['get', 'core'], 1]], served])
       m.setFilter('places-label', served)
       setHover(null)
     })
-  }, [props.kinds.join(','), props.highlightRoute])
+  }, [props.kinds.join(','), props.highlightRoute, props.previewRoute])
 
   // lignes survolées mises en évidence
   useEffect(() => {
     whenReady(() => {
       const routes = hover ? [...new Set(hover.items.map(i => i.route))] : []
       map.current!.setFilter('lines-hover', ['in', ['get', 'route'], ['literal', routes.length ? routes : [-1]]])
+      const focus = [...routes, ...[props.highlightRoute, props.previewRoute].filter((x): x is number => x != null)]
+      map.current!.setFilter('lines-focus-arrows', ['in', ['get', 'route'], ['literal', focus.length ? focus : [-1]]])
     })
-  }, [hover])
+  }, [hover, props.highlightRoute, props.previewRoute])
 
   // itinéraire
   useEffect(() => {

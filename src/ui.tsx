@@ -1,5 +1,6 @@
 // Petits composants d'interface partagés.
-import type { ComponentChildren } from 'preact'
+import { createContext, type ComponentChildren } from 'preact'
+import { useContext } from 'preact/hooks'
 import { Network, Route, fmtHM, fmtDay, addDays } from './net'
 
 const PATHS: Record<string, string> = {
@@ -35,9 +36,20 @@ export function Icon({ name, size = 20, filled = false, label }: { name: keyof t
   )
 }
 
+/** Aperçu d'une ligne au survol (souris ou clavier) depuis n'importe quelle liste du panneau. */
+export const RoutePreview = createContext<{ enter: (r: number) => void; leave: (r: number) => void }>({ enter: () => {}, leave: () => {} })
+
+/** Gestionnaires à poser sur un élément qui représente une ligne. */
+export function usePreview(route: number) {
+  const p = useContext(RoutePreview)
+  return { onMouseEnter: () => p.enter(route), onMouseLeave: () => p.leave(route), onFocus: () => p.enter(route), onBlur: () => p.leave(route) }
+}
+
 export function Pill({ route, small }: { route: Route; small?: boolean }) {
+  const p = useContext(RoutePreview)
   return (
     <span class={`pill${small ? ' pill-sm' : ''}${route.kind === 'tad' ? ' pill-tad' : ''}`} style={{ background: route.color, color: route.text }}
+      onMouseEnter={() => p.enter(route.i)} onMouseLeave={() => p.leave(route.i)}
       title={`${route.short} · ${route.long}`}>
       {route.short}
     </span>

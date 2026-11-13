@@ -291,3 +291,17 @@ button.tip-row:hover { background: var(--surface-2); }
 .train-dest strong { font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .train-dest small { color: var(--muted); font-size: 12px; }
 @media (prefers-color-scheme: dark) { .train-board-head svg { color: #93c5fd; } }
+
+/* ------------------------------------------------ aperçu de ligne (survol dans le panneau) */
+.route-preview { position: absolute; z-index: 5; top: calc(max(12px, env(safe-area-inset-top)) + 104px); right: 12px; width: min(340px, calc(100% - 24px));
+  background: var(--surface); border-radius: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.2); padding: 12px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; font-size: 14px; }
+.shell.desktop .route-preview { top: 64px; left: 420px; right: auto; }
+.rp-head { display: flex; gap: 10px; align-items: flex-start; }
+.rp-title { display: flex; flex-direction: column; line-height: 1.25; }
+.rp-title small { color: var(--muted); font-size: 12.5px; }
+.rp-dirs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rp-dirs li { display: flex; gap: 8px; align-items: baseline; font-size: 13.5px; }
+.rp-dirs small { color: var(--muted); }
+.rp-arrow { font-size: 13px; flex: none; }
+.rp-today { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+.rp-today strong { color: var(--text); }

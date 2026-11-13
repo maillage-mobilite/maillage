@@ -4,7 +4,7 @@ import { useMemo, useState } from 'preact/hooks'
 import {
   Network, Kind, KIND_LABEL, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow,
 } from '../net'
-import { Empty, Header, Icon, Pill, TheoNotice, When } from '../ui'
+import { Empty, Header, Icon, Pill, TheoNotice, When, usePreview } from '../ui'
 import { TrainBoard } from '../trains'
 import type { Favorites } from '../store'
 
@@ -22,6 +22,21 @@ function grouped(net: Network, stops: number[], now: Now, limit = 40) {
     groups.set(k, g)
   }
   return [...groups.values()].sort((a, b) => a.items[0].abs - b.items[0].abs)
+}
+
+function DepLineButton({ route, onRoute, children }: { route: number; onRoute: (i: number) => void; children: any }) {
+  const h = usePreview(route)
+  return <button class="dep-line" onClick={() => onRoute(route)} {...h}>{children}</button>
+}
+
+function PillButton({ net, route, onRoute, label }: { net: Network; route: number; onRoute: (i: number) => void; label: string }) {
+  const h = usePreview(route)
+  return <button class="pill-btn" onClick={() => onRoute(route)} aria-label={label} {...h}><Pill route={net.routes[route]} /></button>
+}
+
+function DepRow({ route, children, ...rest }: { route: number; children: any; class?: string }) {
+  const h = usePreview(route)
+  return <div {...rest} onMouseEnter={h.onMouseEnter} onMouseLeave={h.onMouseLeave}>{children}</div>
 }
 
 export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch }: {
@@ -64,7 +79,7 @@ export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch }: {
             <div class="line-group-label">{KIND_LABEL[k]}{k === 'scolaire' ? ' · ouverture au public à confirmer' : k === 'train' ? ' · en correspondance (SNCF)' : ''}</div>
             <div class="pills-wrap">
               {net.routes.filter(r => r.kind === k).map(r => (
-                <button key={r.i} class="pill-btn" onClick={() => onRoute(r.i)} aria-label={`Ligne ${r.short}, ${r.long}`}><Pill route={r} /></button>
+                <PillButton key={r.i} route={r.i} net={net} onRoute={onRoute} label={`Ligne ${r.short}, ${r.long}`} />
               ))}
             </div>
           </div>
@@ -86,12 +101,12 @@ function PlaceCard({ net, place, now, dist, onOpen }: { net: Network; place: num
       </div>
       {groups.length === 0 && <div class="muted small">Aucun départ dans les 48 h</div>}
       {groups.map(g => (
-        <div class="dep-row" key={g.route + g.headsign}>
+        <DepRow class="dep-row" key={g.route + g.headsign} route={g.route}>
           <Pill route={net.routes[g.route]} small />
           <span class="dep-head">{g.headsign}</span>
           {g.booking && <span class="badge-tad" title="Sur réservation">Résa</span>}
           <span class="dep-times">{g.items.map((d, k) => <When key={k} abs={d.abs} now={now} theoretical={k === 0} />)}</span>
-        </div>
+        </DepRow>
       ))}
     </button>
   )
@@ -112,7 +127,7 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
         sub={<>{d < 20000 ? (d < 1000 ? `${Math.round(d / 10) * 10} m` : `${(d / 1000).toFixed(1)} km`) : ''} · Accessibilité : non renseignée</>}
         right={<button class={`icon-btn${isFav ? ' active' : ''}`} onClick={() => toggleFav('places', p.name)} aria-pressed={isFav} aria-label={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}><Icon name="star" filled={isFav} /></button>} />
       <div class="pills-wrap">
-        {p.routes.map(r => <button key={r} class="pill-btn" onClick={() => onRoute(r)} aria-label={`Ligne ${net.routes[r].short}`}><Pill route={net.routes[r]} /></button>)}
+        {p.routes.map(r => <PillButton key={r} route={r} net={net} onRoute={onRoute} label={`Ligne ${net.routes[r].short}, ${net.routes[r].long}`} />)}
       </div>
       {p.stations.map(([si, m]) => <TrainBoard key={si} net={net} station={si} now={now} walkMeters={m} />)}
       <div class="actions">
@@ -131,11 +146,11 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
             <Fragment key={k}>
               {sep && <li class="day-sep">{fmtDay(addDays(now.date, day), now.date)}</li>}
               <li>
-                <button class="dep-line" onClick={() => onRoute(r.i)}>
+                <DepLineButton route={r.i} onRoute={onRoute}>
                   <Pill route={r} small />
                   <span class="dep-head">{x.trip.headsign}{x.trip.booking && <span class="badge-tad">Sur réservation</span>}</span>
                   <When abs={x.abs} now={now} />
-                </button>
+                </DepLineButton>
               </li>
             </Fragment>
           )

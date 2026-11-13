@@ -2,7 +2,8 @@ import type { ComponentChildren } from 'preact'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { Fares, Kind, Network, loadFares, loadNetwork, parisNow, distance } from './net'
 import { MapView } from './map'
-import { Icon } from './ui'
+import { Icon, RoutePreview } from './ui'
+import { RoutePreviewCard } from './preview'
 import { useFavorites } from './store'
 import { Explore, PlaceView, RouteView } from './views/explore'
 import { TripView, TripState, initialTrip } from './views/trip'
@@ -98,8 +99,15 @@ function Shell({ net }: { net: Network }) {
   const setTrip = (u: (s: TripState) => TripState) => setTripState(u)
   const [focus, setFocus] = useState<{ lat: number; lon: number; zoom?: number; key: number } | null>(null)
   const [snap, setSnap] = useState<Snap>('half')
+  // aperçu d'une ligne survolée dans le panneau
+  const [previewRoute, setPreviewRoute] = useState<number | null>(null)
+  const preview = useMemo(() => ({
+    enter: (r: number) => setPreviewRoute(r),
+    leave: (r: number) => setPreviewRoute(cur => (cur === r ? null : cur)),
+  }), [])
 
   const detail = stack[stack.length - 1]
+  useEffect(() => setPreviewRoute(null), [tab, stack.length, trip.selected])
   const push = (d: Detail) => { setStack(s => [...s, d]); setTab('explore') }
   const back = () => setStack(s => s.slice(0, -1))
   const openPlace = (i: number) => {
@@ -149,8 +157,10 @@ function Shell({ net }: { net: Network }) {
   }
 
   return (
+    <RoutePreview.Provider value={preview}>
     <div class={`shell${desktop ? ' desktop' : ''}`}>
-      <MapView net={net} user={pos} highlightRoute={highlightRoute} journey={journey} focus={focus} padding={padding} onPlace={openPlace} onRoute={openRoute} kinds={mapKinds.kinds} />
+      <MapView net={net} user={pos} highlightRoute={highlightRoute} previewRoute={previewRoute} journey={journey} focus={focus} padding={padding} onPlace={openPlace} onRoute={openRoute} kinds={mapKinds.kinds} />
+      {previewRoute != null && previewRoute !== highlightRoute && <RoutePreviewCard net={net} route={previewRoute} now={now} />}
       <MapFilters net={net} {...mapKinds} />
       <div class="topbar">
         <span class="brand"><span class="brand-mark" aria-hidden="true" />Maillage<em>démo · {net.tenant.name}</em></span>
@@ -167,6 +177,7 @@ function Shell({ net }: { net: Network }) {
         ))}
       </nav>
     </div>
+    </RoutePreview.Provider>
   )
 }
 

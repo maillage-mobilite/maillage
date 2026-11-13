@@ -236,6 +236,79 @@ def snap_to_roads(feats, cache_path, osrm_url, min_gap_m=250, max_ratio=2.2, min
     log(f"recalage voirie : {snapped_feats} tracés recalés, {requests_done} requêtes OSRM, {kept} portions laissées droites")
     return {"snapped_features": snapped_feats, "kept_straight": kept, "service": osrm_url}
 
+
+# ---------------------------------------------------------------- portions à sens unique
+
+def oneway_pieces(feats, tol_m=25.0, step_m=20.0, min_len_m=150.0):
+    """
+    Pour chaque tracé, garde les portions que la même ligne ne parcourt PAS en sens inverse
+    (à tol_m près) : boucles, détours, rues différentes à l'aller et au retour.
+    C'est là, et seulement là, qu'une flèche de sens apporte une information.
+    """
+    def xy(lon, lat, lat0):
+        return (lon * 111320 * math.cos(math.radians(lat0)), lat * 110540)
+    by_route = defaultdict(list)
+    for f in feats:
+        if f["properties"].get("kind") != "train":
+            by_route[f["properties"]["route"]].append(f)
+    pieces = []
+    for route, fs in by_route.items():
+        lat0 = fs[0]["geometry"]["coordinates"][0][1]
+        segs = []  # (feature index, x1, y1, x2, y2, ux, uy)
+        grid = defaultdict(list)
+        cell = 40.0
+        for fi, f in enumerate(fs):
+            c = [xy(x, y, lat0) for x, y in f["geometry"]["coordinates"]]
+            for (x1, y1), (x2, y2) in zip(c, c[1:]):
+                L = math.hypot(x2 - x1, y2 - y1)
+                if L < 1e-6:
+                    continue
+                k = len(segs)
+                segs.append((fi, x1, y1, x2, y2, (x2 - x1) / L, (y2 - y1) / L))
+                for gx in range(int(min(x1, x2) // cell) - 1, int(max(x1, x2) // cell) + 2):
+                    for gy in range(int(min(y1, y2) // cell) - 1, int(max(y1, y2) // cell) + 2):
+                        grid[(gx, gy)].append(k)
+        for fi, f in enumerate(fs):
+            coords = f["geometry"]["coordinates"]
+            c = [xy(x, y, lat0) for x, y in coords]
+            run, runs = [], []
+            for i in range(len(c) - 1):
+                (x1, y1), (x2, y2) = c[i], c[i + 1]
+                L = math.hypot(x2 - x1, y2 - y1)
+                if L < 1e-6:
+                    continue
+                ux, uy = (x2 - x1) / L, (y2 - y1) / L
+                n = max(1, int(L // step_m))
+                for j in range(n):
+                    t = (j + 0.5) / n
+                    px, py = x1 + ux * L * t, y1 + uy * L * t
+                    shared = False
+                    for k in grid.get((int(px // cell), int(py // cell)), ()):
+                        gi, ax, ay, bx, by, vx, vy = segs[k]
+                        if gi == fi or ux * vx + uy * vy > -0.5:
+                            continue  # même tracé, ou même sens
+                        sl = math.hypot(bx - ax, by - ay)
+                        proj = max(0.0, min(sl, (px - ax) * vx + (py - ay) * vy))
+                        if math.hypot(px - (ax + vx * proj), py - (ay + vy * proj)) <= tol_m:
+                            shared = True
+                            break
+                    lon = coords[i][0] + (coords[i + 1][0] - coords[i][0]) * t
+                    lat = coords[i][1] + (coords[i + 1][1] - coords[i][1]) * t
+                    if shared:
+                        if run:
+                            runs.append(run)
+                        run = []
+                    else:
+                        run.append((round(lon, 5), round(lat, 5)))
+            if run:
+                runs.append(run)
+            for r in runs:
+                length = sum(haversine(a[1], a[0], b[1], b[0]) for a, b in zip(r, r[1:]))
+                if len(r) >= 2 and length >= min_len_m:
+                    pieces.append({"type": "Feature", "properties": {"route": route, "kind": f["properties"]["kind"]},
+                                   "geometry": {"type": "LineString", "coordinates": simplify(r, 4.0)}})
+    return pieces
+
 # ---------------------------------------------------------------- pipeline
 
 def main():
@@ -640,7 +713,7 @@ def main():
         "stations_source": ({"name": rail.get("name"), "licence": rail.get("licence"), "page": rail.get("page")} if rail else None),
     }
     # tracés par ligne (dédupliqués)
-    feats, seen = [], set()
+    feats, seen, reversed_shapes = [], set(), 0
     for t in trips:
         ri = route_index[t["route"]]
         if t["shape"] and t["shape"] in shapes:
@@ -652,6 +725,13 @@ def main():
         if key in seen or len(coords) < 2:
             continue
         seen.add(key)
+        # orientation : le tracé doit partir du premier arrêt de la course (sens de circulation,
+        # utilisé par les flèches). Certains flux réutilisent une même forme pour les deux sens.
+        s0, s1 = stops[t["stops"][0]], stops[t["stops"][-1]]
+        if t["stops"][0] != t["stops"][-1] and \
+                haversine(coords[0][1], coords[0][0], s0["lat"], s0["lon"]) > haversine(coords[0][1], coords[0][0], s1["lat"], s1["lon"]):
+            coords = list(reversed(coords))
+            reversed_shapes += 1
         r = routes[t["route"]]
         # provenance / destination du tracé (pôles de la première et de la dernière desserte)
         origin = places[place_of[t["stops"][0]]]["name"]
@@ -660,11 +740,18 @@ def main():
                                                         "from": origin, "to": dest},
                       "geometry": {"type": "LineString", "coordinates": coords}})
 
+    if reversed_shapes:
+        log(f"tracés : {reversed_shapes} formes retournées pour suivre le sens de circulation")
     snap_cfg = cfg.get("snap_to_roads")
     if snap_cfg and snap_cfg.get("enabled") and not args.no_snap:
         out["shapes"] = snap_to_roads(feats, os.path.join(args.cache, "osrm-cache.json"), snap_cfg["osrm_url"].rstrip("/"))
     with open(os.path.join(args.out, "network.json"), "w", encoding="utf-8") as fh:
         json.dump(out, fh, ensure_ascii=False, separators=(",", ":"))
+    # portions à sens unique (flèches de sens uniquement là où l'aller et le retour diffèrent)
+    arrows = oneway_pieces(feats)
+    with open(os.path.join(args.out, "oneway.geojson"), "w", encoding="utf-8") as fh:
+        json.dump({"type": "FeatureCollection", "features": arrows}, fh, separators=(",", ":"))
+    log(f"sens unique : {len(arrows)} portions où l'aller et le retour ne suivent pas le même chemin")
     with open(os.path.join(args.out, "lines.geojson"), "w", encoding="utf-8") as fh:
         json.dump({"type": "FeatureCollection", "features": feats}, fh, separators=(",", ":"))
 
