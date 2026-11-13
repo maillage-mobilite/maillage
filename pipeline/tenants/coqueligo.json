@@ -19,6 +19,13 @@
     "licence": "ODbL",
     "max_walk_m": 500
   },
+  "rail_timetables": {
+    "name": "Réseau SNCF TGV, Intercités et TER (GTFS)",
+    "url": "https://www.data.gouv.fr/api/1/datasets/r/9ae758ec-cd7a-40cd-a890-bb3963224942",
+    "page": "https://transport.data.gouv.fr/datasets/horaires-sncf",
+    "licence": "ODbL",
+    "modes": ["Train TER", "TGV INOUI", "OUIGO", "INTERCITES", "INTERCITES de nuit", "ICE"]
+  },
   "feeds": [
     {
       "id": "urbain", "kind": "urbain", "name": "Réseau urbain CoqueliGO",

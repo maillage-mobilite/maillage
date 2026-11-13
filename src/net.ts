@@ -27,6 +27,10 @@ export interface Network {
   shapes?: { snapped_features: number; kept_straight: number; service: string }
   stations: Station[]
   stationsSource: { name: string; licence: string; page: string } | null
+  /** Passages de trains par gare (index de Station). */
+  trains: Record<number, TrainRow[]>
+  trainServices: string[]
+  trainsSource: { name: string; licence: string; page: string } | null
   routes: Route[]
   stops: Stop[]
   places: Place[]
@@ -66,7 +70,11 @@ export function parseNetwork(raw: any): Network {
   for (const [a, b, sec] of raw.footpaths) foot[a].push([b, sec])
   return {
     generatedAt: raw.generated_at, tenant: raw.tenant, booking: raw.booking, windowStart: raw.window_start, windowDays: raw.window_days,
-    feeds: raw.feeds, reconciliation: raw.reconciliation, shapes: raw.shapes, stations, stationsSource: raw.stations_source ?? null, routes, stops, places, trips, services: raw.services, foot, tripsAt,
+    feeds: raw.feeds, reconciliation: raw.reconciliation, shapes: raw.shapes, stations, stationsSource: raw.stations_source ?? null,
+    trains: Object.fromEntries(Object.entries(raw.trains ?? {}).map(([k, rows]: [string, any]) => [Number(k), rows.map((r: any[]) => ({
+      dep: r[0], arr: r[1], svc: r[2], mode: r[3], line: r[4], number: r[5], from: r[6], to: r[7], noPickup: !!r[8], noDrop: !!r[9],
+    }))])),
+    trainServices: raw.train_services ?? [], trainsSource: raw.trains_source ?? null, routes, stops, places, trips, services: raw.services, foot, tripsAt,
   }
 }
 
@@ -209,4 +217,43 @@ export function stationLabel(name: string): string {
   if (/^La /.test(name)) return `Gare de la ${name.slice(3)}`
   if (/^L'/.test(name)) return `Gare de l'${name.slice(2)}`
   return `Gare de ${name}`
+}
+
+// ------------------------------------------------------------------ trains
+
+export interface TrainRow { dep: number; arr: number; svc: number; mode: string; line: string; number: string; from: string; to: string; noPickup: boolean; noDrop: boolean }
+export interface TrainPass extends TrainRow { abs: number; date: string }
+
+export const TRAIN_MODE: Record<string, { label: string; color: string }> = {
+  'Train TER': { label: 'TER', color: '#1e3a8a' },
+  'TGV INOUI': { label: 'TGV', color: '#8a1538' },
+  'OUIGO': { label: 'OUIGO', color: '#d6006f' },
+  'INTERCITES': { label: 'IC', color: '#00577d' },
+  'INTERCITES de nuit': { label: 'IC Nuit', color: '#2b2b6b' },
+  'ICE': { label: 'ICE', color: '#5b6770' },
+}
+
+/** Prochains départs (ou arrivées) de trains dans une gare, à partir d'un instant, sur quelques jours. */
+export function trainPasses(net: Network, station: number, from: { date: string; sec: number }, opts: { kind?: 'dep' | 'arr'; limit?: number; horizonDays?: number; modes?: Set<string> } = {}): TrainPass[] {
+  const rows = net.trains[station] ?? []
+  const kind = opts.kind ?? 'dep'
+  const name = net.stations[station]?.name
+  const out: TrainPass[] = []
+  for (let d = -1; d <= (opts.horizonDays ?? 1); d++) {
+    const date = addDays(from.date, d)
+    const k = dayIndex(net, date)
+    if (k < 0 || k >= net.windowDays) continue
+    for (const r of rows) {
+      if (net.trainServices[r.svc][k] !== '1') continue
+      if (opts.modes && !opts.modes.has(r.mode)) continue
+      if (kind === 'dep' && (r.noPickup || r.to === name)) continue
+      if (kind === 'arr' && (r.noDrop || r.from === name)) continue
+      const t = kind === 'dep' ? r.dep : r.arr
+      const abs = t + d * 86400
+      if (abs < from.sec) continue
+      out.push({ ...r, abs, date })
+    }
+  }
+  out.sort((a, b) => a.abs - b.abs)
+  return out.slice(0, opts.limit ?? 10)
 }

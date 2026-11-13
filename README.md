@@ -30,6 +30,7 @@ Autres commandes : `npm run test:router` (tests du calculateur sur les vraies do
 |---|---|---|
 | Carte | Filtre par type (CoqueliGO : urbain, TAD, scolaire · cars Région), mémorisé sur l'appareil. Survol (souris) ou toucher d'un tracé : ligne, nom, **provenance → destination** du tracé ; plusieurs lignes superposées sont listées, chacune ouvre sa fiche | GTFS + pipeline |
 | Gares | 7 gares SNCF reliées à moins de 500 m d'un arrêt desservi (Péage-de-Roussillon, Saint-Rambert-d'Albon, Saint-Vallier, Valence, Lyon Part-Dieu, Saint-Étienne Bellevue, Saint-Péray) : sur la carte, dans la recherche et sur les fiches arrêt (« correspondance train ») | SNCF Open Data (ODbL) |
+| Trains en correspondance | Tableau **départs / arrivées** de chaque gare sur la fiche des arrêts proches (TER, TGV, OUIGO, Intercités ; option « TER seulement »). Sur un itinéraire qui finit près d'une gare : **trains au départ après l'arrivée du bus**, marche et 5 min de marge comprises. Desserte ponctuelle signalée (ex. Saint-Péray, desservie uniquement le week-end du 14-15/11 : trains probablement déviés) | GTFS SNCF national (ODbL) |
 | Tarifs | Grille 2026-2027 (19 titres) et **tarif indicatif** de chaque itinéraire (tickets nécessaires selon la durée de validité et les correspondances) | Portail Matawan, relevé le 13/11/2026 |
 | Explorer | Arrêts autour de soi et prochains départs, regroupés par ligne et direction, avec les deux prochains passages | GTFS |
 | Fiche arrêt | Toutes les lignes, départs sur 48 h avec séparateurs de jour, badge « Sur réservation » pour le TAD, favori | GTFS |
@@ -85,6 +86,9 @@ Aucun serveur applicatif : tout tourne dans le navigateur. C'est possible parce 
 - MapLibre 6.18 (corrigé) a été essayé deux fois : son style ne se charge pas avec Vite 8. **À retenter** lors d'une prochaine mise à jour de MapLibre ou de Vite. L'alerte disparaîtra alors.
 
 ## Limites connues
+- Les trains ne sont **pas encore intégrés au calcul d'itinéraire**. Ils apparaissent en correspondance, mais la recherche Annonay → Marseille ne propose pas car + TER. Étape suivante possible : ajouter au calculateur les trains des gares reliées.
+- Horaires de trains théoriques. La SNCF publie un flux **temps réel GTFS-RT** (retards, suppressions) sur transport.data.gouv.fr, qui pourrait être branché ensuite.
+- Le fichier `network.json` passe à ~770 Ko avec les trains, dont 2 154 passages pour Lyon Part-Dieu seule. On pourrait le réduire en limitant Lyon aux TER.
 - Les tracés recalés sur la voirie sont **probables, pas certains** : le trajet réel d'un car scolaire ou d'un TAD peut différer. À faire valider par le réseau, idéalement en lui proposant de publier ces tracés dans ses GTFS.
 - Horaires théoriques uniquement (le temps réel n'est pas publié en open data).
 - L'expiration affichée pour l'urbain (2 janvier 2027) correspond au service du samedi : en semaine, les données publiées s'arrêtent dès le **18 décembre 2026**.

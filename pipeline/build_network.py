@@ -516,6 +516,64 @@ def main():
                                      "links": sorted(([pl, int(round(d))] for pl, d in links.items()), key=lambda x: x[1])})
         log(f"gares : {len(stations_out)} en correspondance avec le réseau ({', '.join(x['name'] for x in stations_out)})")
 
+
+    # ------------------------------------------------ horaires des trains dans les gares en correspondance
+    trains_out, train_svcs, rail_tt = {}, [], cfg.get("rail_timetables")
+    if rail_tt and stations_out:
+        tpath = os.path.join(args.cache, f"{cfg['tenant']}-sncf.zip")
+        download(rail_tt["url"], tpath)
+        g = Gtfs(tpath)
+        modes = set(rail_tt.get("modes", []))
+        uic_to_station = {}
+        for k, st in enumerate(stations_out):
+            for u in str(st.get("uic") or "").split(";"):
+                if u:
+                    uic_to_station[u.strip()] = k
+        # passe 1 : passages des trains (hors cars) dans nos gares
+        hits, trip_ids = [], set()
+        pat = re.compile(r"StopPoint:OCE(.+)-(\d{8})$")
+        for st in g.rows("stop_times.txt"):
+            m = pat.match(st["stop_id"])
+            if m and m.group(2) in uic_to_station and m.group(1) in modes:
+                hits.append((uic_to_station[m.group(2)], m.group(1), st))
+                trip_ids.add(st["trip_id"])
+        # passe 2 : origine et terminus de ces trains
+        ends = {}
+        for st in g.rows("stop_times.txt"):
+            if st["trip_id"] in trip_ids:
+                seq = int(st["stop_sequence"])
+                lo, hi = ends.get(st["trip_id"], ((1e9, None), (-1, None)))
+                ends[st["trip_id"]] = (min(lo, (seq, st["stop_id"])), max(hi, (seq, st["stop_id"])))
+        names = {s["stop_id"]: s["stop_name"] for s in g.rows("stops.txt")}
+        trips_r = {t["trip_id"]: t for t in g.rows("trips.txt") if t["trip_id"] in trip_ids}
+        routes_r = {r["route_id"]: r for r in g.rows("routes.txt")}
+        used = {trips_r[t]["service_id"] for t in trip_ids if t in trips_r}
+        active = defaultdict(set)
+        for c in g.rows("calendar_dates.txt"):
+            if c["service_id"] in used and c["exception_type"] == "1":
+                d = parse_date(c["date"])
+                if win_dates[0] <= d <= win_dates[-1]:
+                    active[c["service_id"]].add(d)
+        svc_index_t = {}
+        for k, mode, st in hits:
+            t = trips_r.get(st["trip_id"])
+            if not t or not active.get(t["service_id"]):
+                continue
+            sid = t["service_id"]
+            if sid not in svc_index_t:
+                svc_index_t[sid] = len(train_svcs)
+                train_svcs.append("".join("1" if d in active[sid] else "0" for d in win_dates))
+            (_, first), (_, last) = ends[st["trip_id"]]
+            r = routes_r.get(t["route_id"], {})
+            trains_out.setdefault(k, []).append([
+                parse_time(st["departure_time"]), parse_time(st["arrival_time"]), svc_index_t[sid], mode,
+                (r.get("route_short_name") or "").strip(), (t.get("trip_headsign") or "").strip(),
+                nice_name(names.get(first, "")), nice_name(names.get(last, "")),
+                1 if st.get("pickup_type") == "1" else 0, 1 if st.get("drop_off_type") == "1" else 0])
+        for k in trains_out:
+            trains_out[k].sort(key=lambda x: x[0])
+        log(f"trains : {sum(len(v) for v in trains_out.values())} passages dans {len(trains_out)} gares, {len(train_svcs)} calendriers")
+
     # ------------------------------------------------ correspondances à pied
     stop_index = {sid: k for k, sid in enumerate(ids)}
     foot = []
@@ -554,6 +612,9 @@ def main():
                    [stop_index[s] for s in t["stops"]], t["arr"], t["dep"], 1 if t["booking"] else 0] for t in trips],
         "footpaths": foot,
         "stations": [[x["name"], round(x["lat"], 6), round(x["lon"], 6), x["uic"], x["segment"], x["links"]] for x in stations_out],
+        "trains": {str(k): v for k, v in trains_out.items()},
+        "train_services": train_svcs,
+        "trains_source": ({"name": rail_tt.get("name"), "licence": rail_tt.get("licence"), "page": rail_tt.get("page")} if rail_tt else None),
         "stations_source": ({"name": rail.get("name"), "licence": rail.get("licence"), "page": rail.get("page")} if rail else None),
     }
     # tracés par ligne (dédupliqués)

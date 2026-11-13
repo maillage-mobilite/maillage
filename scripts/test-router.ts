@@ -1,7 +1,7 @@
 // Tests de bout en bout du calculateur sur les vraies données (npm run test:router).
 // Vérifie surtout l'invariant clé : chaque horaire affiché existe dans les GTFS.
 import { readFileSync } from 'node:fs'
-import { parseNetwork, fmtHM, departures, addDays, distance } from '../src/net'
+import { parseNetwork, fmtHM, departures, addDays, distance, trainPasses, stationLabel } from '../src/net'
 import { plan, Point } from '../src/router'
 
 const net = parseNetwork(JSON.parse(readFileSync(new URL('../public/data/network.json', import.meta.url), 'utf8')))
@@ -60,6 +60,19 @@ show(place('Gare Routière'), { lat: 45.2445, lon: 4.6637, label: 'Rue de Bourgo
 const d = departures(net, net.places.find(p => p.name === 'Gare Routière')!.stops, { date: DATE, sec: 8 * 3600 }, { limit: 6 })
 console.log('\nProchains départs Gare routière lundi 8 h :', d.map(x => `${net.routes[x.trip.route].short} ${fmtHM(x.time)} → ${x.trip.headsign}`).join(' · '))
 check(d.length > 0, 'aucun départ à la gare routière')
+// --- trains en correspondance
+for (const st of net.stations) {
+  // sur 7 jours à partir du début de la fenêtre : certaines gares n'ont qu'une desserte ponctuelle (Saint-Péray)
+  const from = { date: addDays(net.windowStart, 1), sec: 0 }
+  const dep = trainPasses(net, st.i, from, { kind: 'dep', limit: 3, horizonDays: 7 })
+  const arr = trainPasses(net, st.i, from, { kind: 'arr', limit: 3, horizonDays: 7 })
+  console.log(`${stationLabel(st.name).padEnd(36)} départs : ${dep.map(t => `${fmtHM(t.abs)} ${t.mode.replace('Train ', '')} → ${t.to}`).join(' · ')}`)
+  check(dep.length > 0 && arr.length > 0, `aucun train à ${st.name}`)
+  check(dep.every(t => t.to !== st.name && !t.noPickup), `départ invalide (terminus ou sans montée) à ${st.name}`)
+  check(dep.every((t, k) => k === 0 || t.abs >= dep[k - 1].abs), `départs non triés à ${st.name}`)
+}
+const peage = net.places.find(p => p.stations.length && /SNCF/i.test(p.name))
+check(!!peage, 'aucun pôle de bus rattaché à une gare')
 void addDays; void distance
 console.log(failures ? `\n${failures} échec(s)` : '\nTous les contrôles passent ✓')
 process.exit(failures ? 1 : 0)

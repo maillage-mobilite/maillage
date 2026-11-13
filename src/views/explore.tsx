@@ -5,6 +5,7 @@ import {
   Network, Kind, KIND_LABEL, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow,
 } from '../net'
 import { Empty, Header, Icon, Pill, TheoNotice, When } from '../ui'
+import { TrainBoard } from '../trains'
 import type { Favorites } from '../store'
 
 type Now = { date: string; sec: number }
@@ -113,17 +114,7 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
       <div class="pills-wrap">
         {p.routes.map(r => <button key={r} class="pill-btn" onClick={() => onRoute(r)} aria-label={`Ligne ${net.routes[r].short}`}><Pill route={net.routes[r]} /></button>)}
       </div>
-      {p.stations.length > 0 && (
-        <div class="callout train">
-          {p.stations.map(([si, m]) => (
-            <div key={si} class="train-row">
-              <Icon name="train" size={20} />
-              <span><strong>Correspondance train : {stationLabel(net.stations[si].name).replace(/^Gare/, 'gare')}</strong><br />
-                <span class="small">{m < 40 ? 'Sur place' : `À ${m} m à pied (≈ ${Math.max(1, Math.round(m * 1.25 / 72))} min)`} · horaires des trains sur SNCF Connect ou TER Auvergne-Rhône-Alpes</span></span>
-            </div>
-          ))}
-        </div>
-      )}
+      {p.stations.map(([si, m]) => <TrainBoard key={si} net={net} station={si} now={now} walkMeters={m} />)}
       <div class="actions">
         <button class="btn primary" onClick={() => onGo(id)}><Icon name="route" size={18} /> Y aller</button>
         <button class="btn" onClick={() => onFrom(id)}>Partir d'ici</button>

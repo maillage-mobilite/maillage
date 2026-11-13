@@ -107,6 +107,10 @@ export function SourcesView({ net, onBack }: { net: Network; onBack: () => void 
         <p class="small"><strong>{net.stations.length} gares en correspondance</strong> (à moins de 500 m d'un arrêt desservi) :{' '}
           {net.stations.map(s => s.name).join(', ')}. Source : <a href={net.stationsSource.page} target="_blank" rel="noopener">{net.stationsSource.name}</a> ({net.stationsSource.licence}).</p>
       )}
+      {net.trainsSource && (
+        <p class="small"><strong>Horaires des trains</strong> en correspondance (TER, TGV, OUIGO, Intercités ; cars TER exclus) :{' '}
+          <a href={net.trainsSource.page} target="_blank" rel="noopener">{net.trainsSource.name}</a> ({net.trainsSource.licence}).</p>
+      )}
       {net.feeds.map(f => (
         <div class="card static feed" key={f.id}>
           <div class="card-head"><strong>{f.name}</strong><span class={`badge${f.days_left != null && f.days_left < 60 ? ' warn' : ''}`}>{f.days_left != null ? (f.days_left < 0 ? 'expiré' : `${f.days_left} j restants`) : '—'}</span></div>
@@ -127,7 +131,7 @@ export function SourcesView({ net, onBack }: { net: Network; onBack: () => void 
           <li>Accessibilité des arrêts : non renseignée.</li>
         </ul>
       </div>
-      <p class="small muted">Fond de carte © contributeurs OpenStreetMap (OpenFreeMap). Adresses : Base Adresse Nationale. Cars Région : agrégat Oùra (ODbL). Gares : SNCF Open Data (ODbL).</p>
+      <p class="small muted">Fond de carte © contributeurs OpenStreetMap (OpenFreeMap). Adresses : Base Adresse Nationale. Cars Région : agrégat Oùra (ODbL). Gares et horaires des trains : SNCF Open Data (ODbL).</p>
     </div>
   )
 }

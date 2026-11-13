@@ -4,6 +4,8 @@ import { Fares, Network, fmtHM, fmtDuration, fmtDay, addDays, fmtEur } from '../
 import { Journey, Leg, PlanResult, Point, plan, tadBookable } from '../router'
 import { Suggestion, searchAddress, searchLocal } from '../search'
 import { Empty, Header, Icon, Pill, TheoNotice } from '../ui'
+import { TrainRowView, connectingTrains } from '../trains'
+import { distance, stationLabel } from '../net'
 
 type Now = { date: string; sec: number }
 
@@ -267,8 +269,31 @@ export function JourneyDetail({ net, now, journey, date, fares, onBack, onBook }
         })}
         <li class="leg end"><span class="leg-time">{fmtHM(journey.arr)}</span><span class="leg-icon"><Icon name="check" size={18} /></span><div><strong>Arrivée</strong></div></li>
       </ol>
+      <ArrivalTrains net={net} now={now} journey={journey} date={date} />
       <TheoNotice />
     </div>
+  )
+}
+
+/** Si l'itinéraire se termine près d'une gare : trains au départ après l'arrivée. */
+function ArrivalTrains({ net, now, journey, date }: { net: Network; now: Now; journey: Journey; date: string }) {
+  const last = journey.legs[journey.legs.length - 1]
+  const end = last.type === 'walk' ? last.to : net.stops[last.trip.stops[last.toPos]]
+  let best: { i: number; d: number } | null = null
+  for (const st of net.stations) {
+    const d = distance(end.lat, end.lon, st.lat, st.lon)
+    if (d <= 500 && (!best || d < best.d)) best = { i: st.i, d }
+  }
+  if (!best || !(net.trains[best.i]?.length)) return null
+  const trains = connectingTrains(net, best.i, date, journey.arr, Math.round(best.d))
+  return (
+    <section class="train-board">
+      <div class="train-board-head"><Icon name="train" size={20} /><span><strong>Trains en correspondance · {stationLabel(net.stations[best.i].name)}</strong>
+        <small>départs après votre arrivée, marche et 5 min de marge comprises</small></span></div>
+      {trains.length === 0 ? <p class="muted small">Aucun train dans les 24 h suivant votre arrivée.</p>
+        : <ul class="train-list">{trains.map(t => <TrainRowView key={`${t.number}${t.abs}`} t={{ ...t, abs: t.abs }} now={now} kind="dep" />)}</ul>}
+      <p class="small muted">Horaires théoriques SNCF, sans garantie de correspondance : vérifiez sur SNCF Connect.</p>
+    </section>
   )
 }
 
