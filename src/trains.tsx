@@ -29,7 +29,7 @@ export function TrainRowView({ t, now, kind, uic }: { t: TrainPass; now: Now; ki
       <TrainBadge mode={t.mode} />
       <span class="train-dest">
         <strong>{kind === 'dep' ? t.to : t.from}</strong>
-        <small>{TRAIN_MODE[t.mode]?.label ?? t.mode} {t.number}{t.line ? ` · ligne ${t.line}` : ''}</small>
+        <small>{TRAIN_MODE[t.mode]?.label ?? t.mode} n° {t.number}</small>
       </span>
       <span class="train-when">
         {off ? <s class="when">{fmtHM(t.abs)}</s> : <When abs={t.abs + (st?.delay ?? 0)} now={now} theoretical={!st} />}

@@ -2,7 +2,7 @@
 import { Fragment } from 'preact'
 import { useMemo, useState } from 'preact/hooks'
 import {
-  Network, Kind, KIND_LABEL, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow, fmtDuration
+  Network, Kind, KIND_LABEL, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow, fmtDuration, routeKey, type Route
 } from '../net'
 import { Empty, Header, Icon, Pill, ReportLink, TheoNotice, When, usePreview } from '../ui'
 import { TrainBoard } from '../trains'
@@ -34,6 +34,12 @@ function DepLineButton({ route, onRoute, children }: { route: number; onRoute: (
 function PillButton({ net, route, onRoute, label }: { net: Network; route: number; onRoute: (i: number, from?: number) => void; label: string }) {
   const h = usePreview(route)
   return <button class="pill-btn" onClick={() => onRoute(route)} aria-label={label} {...h}><Pill route={net.routes[route]} /></button>
+}
+
+/** Ligne TER : pastille « TER » et parcours en clair (les codes SNCF ne sont pas ceux affichés aux voyageurs). */
+function TerRow({ r, onRoute }: { r: Route; onRoute: (i: number) => void }) {
+  const h = usePreview(r.i)
+  return <button class="ter-row" onClick={() => onRoute(r.i)} {...h}><Pill route={r} small /><span>{r.long}</span></button>
 }
 
 function DepRow({ route, children, ...rest }: { route: number; children: any; class?: string }) {
@@ -83,7 +89,7 @@ export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch, onGoLo
   // une pastille par numéro de ligne (le GTFS SNCF a plusieurs « routes » pour un même numéro)
   const uniqueRoutes = (k: Kind) => {
     const seen = new Set<string>()
-    return net.routes.filter(r => r.kind === k && (seen.has(r.short) ? false : (seen.add(r.short), true)))
+    return net.routes.filter(r => r.kind === k && (seen.has(routeKey(r)) ? false : (seen.add(routeKey(r)), true)))
   }
   const near = useMemo(() => nearestPlaces(net, pos.lat, pos.lon, 4, 900), [net, pos.lat, pos.lon])
   const fallback = useMemo(() => (near.length ? [] : nearestPlaces(net, pos.lat, pos.lon, 2, 30000)), [near, pos.lat, pos.lon])
@@ -131,7 +137,11 @@ export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch, onGoLo
             <div class="line-group-label">{KIND_LABEL[k]}{k === 'scolaire' ? ' · ouverture au public à confirmer' : k === 'train' ? ' · en correspondance (SNCF)' : ''}</div>
             {k === 'train' && !showTrains
               ? <button class="btn ghost" onClick={() => setShowTrains(true)} aria-expanded={false}>Afficher les {uniqueRoutes('train').length} lignes TER</button>
-              : <div class="pills-wrap">
+              : k === 'train' ? <ul class="ter-list">
+              {uniqueRoutes(k).sort((a, b) => a.long.localeCompare(b.long, 'fr')).map(r => (
+                <li key={r.i}><TerRow r={r} onRoute={onRoute} /></li>
+              ))}
+            </ul> : <div class="pills-wrap">
               {uniqueRoutes(k).map(r => (
                 <PillButton key={r.i} route={r.i} net={net} onRoute={onRoute} label={`Ligne ${r.short}, ${r.long}`} />
               ))}
@@ -178,7 +188,9 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
   const isFav = fav.places.includes(p.name)
   const d = distance(pos.lat, pos.lon, p.lat, p.lon)
   const LINES_MAX = 8
-  const lines = allLines ? p.routes : p.routes.slice(0, LINES_MAX)
+  const busLines = p.routes.filter(r => net.routes[r].kind !== 'train')
+  const terLines = p.routes.filter(r => net.routes[r].kind === 'train')
+  const lines = allLines ? busLines : busLines.slice(0, LINES_MAX)
   let lastDay = -1
   return (
     <div class="sheet-body">
@@ -223,16 +235,17 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
         <h3 class="section-title" id="lines-title">Lignes desservies</h3>
         <div class="pills-wrap">
           {lines.map(r => <PillButton key={r} route={r} net={net} onRoute={rr => onRoute(rr, id)} label={`Ligne ${net.routes[r].short}, ${net.routes[r].long}`} />)}
-          {p.routes.length > LINES_MAX && (
+          {busLines.length > LINES_MAX && (
             <button class="chip more" onClick={() => setAllLines(!allLines)} aria-expanded={allLines}>
-              {allLines ? 'Moins' : `+ ${p.routes.length - LINES_MAX} lignes`}
+              {allLines ? 'Moins' : `+ ${busLines.length - LINES_MAX} lignes`}
             </button>
           )}
         </div>
+        {terLines.length > 0 && <ul class="ter-list">{terLines.map(r => <li key={r}><TerRow r={net.routes[r]} onRoute={rr => onRoute(rr, id)} /></li>)}</ul>}
         <p class="small muted">Accessibilité de l'arrêt : non renseignée par le réseau.</p>
       </section>
       <ReportLink email={net.tenant.links.email} subject={`Signalement — arrêt ${p.name}`}
-        context={`Arrêt : ${p.name} (${p.lat.toFixed(5)}, ${p.lon.toFixed(5)})\nLignes : ${p.routes.map(r => net.routes[r].short).join(', ')}`} />
+        context={`Arrêt : ${p.name} (${p.lat.toFixed(5)}, ${p.lon.toFixed(5)})\nLignes : ${p.routes.map(r => net.routes[r].kind === 'train' ? `TER ${net.routes[r].long}` : net.routes[r].short).join(', ')}`} />
       <TheoNotice />
     </div>
   )
@@ -269,7 +282,7 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
   const [sel, setSel] = useState<number | null>(null)
   const row = rows[sel ?? nextIdx]
   const trip = row?.t ?? ref
-  const key = `${r.kind}:${r.short}`
+  const key = routeKey(r)
   const isFav = fav.routes.includes(key)
   const booking = r.kind === 'tad' ? net.booking['tad'] : null
   const dirLabel = (d: number) => { const t = referenceTrip(net, id, d); return t ? `vers ${t.headsign}` : '' }

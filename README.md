@@ -92,6 +92,7 @@ Aucun serveur applicatif : tout tourne dans le navigateur. C'est possible parce 
 - MapLibre 6.18 (corrigé) a été essayé deux fois : son style ne se charge pas avec Vite 8. **À retenter** lors d'une prochaine mise à jour de MapLibre ou de Vite. L'alerte disparaîtra alors.
 
 ## Limites connues
+- **Lignes TER affichées par leur parcours** (« TER · Mâcon – Lyon Perrache – Valence ») : les codes du GTFS SNCF (K4, K64, P4…) ne sont pas les numéros affichés aux voyageurs (TER Auvergne-Rhône-Alpes numérote ses lignes 01 à 76) et un même code sert dans plusieurs régions. Vérifié le 13/11/2026 sur ter.sncf.com.
 - Seuls les **TER** sont intégrés au calcul d'itinéraire : les TGV, OUIGO et Intercités apparaissent dans les tableaux des gares, mais pas dans les itinéraires (billets et réservation différents).
 - **Temps réel des trains** (GTFS-RT SNCF via transport.data.gouv.fr) : retards, suppressions et arrêts supprimés dans les tableaux de gare et les correspondances, rafraîchis chaque minute tant qu'ils sont affichés. Le flux national pèse ~900 Ko : en production, un serveur le filtrerait sur les gares du réseau. Pas encore appliqué aux trajets TER dans le détail d'un itinéraire.
 - Le fichier `network.json` passe à ~770 Ko avec les trains, dont 2 154 passages pour Lyon Part-Dieu seule. On pourrait le réduire en limitant Lyon aux TER.

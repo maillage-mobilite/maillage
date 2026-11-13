@@ -399,3 +399,10 @@ table.quality td { padding: 5px 4px; border-bottom: 1px solid var(--line); }
 .rt-bad { color: #c62828; }
 .train-row-item.off .train-dest strong { text-decoration: line-through; color: var(--muted); }
 .train-when s.when { color: var(--muted); font-weight: 400; }
+
+/* Lignes TER : pastille « TER » + parcours en clair */
+.ter-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.ter-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 4px 2px; background: none; border: 0; border-bottom: 1px solid var(--line); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ter-list li:last-child .ter-row { border-bottom: 0; }
+.ter-row:hover, .ter-row:focus-visible { background: var(--hover, rgba(127,127,127,.08)); }
+.ter-row span { font-size: 14px; }

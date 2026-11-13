@@ -1,5 +1,5 @@
 // Onglets Info trafic et Mes trajets (favoris, services, sources des données).
-import { Fares, Network, fmtEur } from '../net'
+import { Fares, Network, fmtEur, routeKey } from '../net'
 import { useState } from 'preact/hooks'
 import { Empty, Header, Icon, Pill } from '../ui'
 import { LOCATION_META, type LocationKind, type SavedLocation } from '../store'
@@ -100,7 +100,7 @@ export function MeView({ net, fav, near, onPlace, onRoute, onSources, onFares, h
     )
   }
   const places = net.places.filter(p => fav.places.includes(p.name))
-  const routes = net.routes.filter(r => fav.routes.includes(`${r.kind}:${r.short}`))
+  const routes = net.routes.filter(r => fav.routes.includes(routeKey(r)))
   const L = net.tenant.links
   return (
     <div class="sheet-body">

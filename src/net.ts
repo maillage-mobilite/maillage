@@ -3,7 +3,37 @@
 
 export type Kind = 'urbain' | 'scolaire' | 'tad' | 'region' | 'train'
 
-export interface Route { i: number; short: string; long: string; color: string; text: string; kind: Kind; agency: string }
+export interface Route {
+  i: number; short: string; long: string; color: string; text: string; kind: Kind; agency: string
+  /** Code d'origine du GTFS (pour les TER, code interne SNCF non affiché aux voyageurs). */
+  code: string
+}
+
+/**
+ * Les codes de ligne du GTFS SNCF (K4, K64, P4…) ne sont pas les numéros affichés aux voyageurs
+ * (TER Auvergne-Rhône-Alpes numérote ses lignes 01 à 76) et un même code sert dans plusieurs régions.
+ * On affiche donc « TER » et le parcours en clair.
+ */
+const GARE_FIX: [RegExp, string][] = [
+  [/\bLyon[ -]P(?:art)?[ -]?D(?:ieu)?\b/g, 'Lyon Part-Dieu'], [/\bLyon-Perrache\b/g, 'Lyon Perrache'],
+  [/\bChambery\b/g, 'Chambéry'], [/\bBriancon\b/g, 'Briançon'], [/\bBourg En Bresse\b/g, 'Bourg-en-Bresse'],
+  [/\bBourg St-Maurice\b/g, 'Bourg-Saint-Maurice'], [/\bSt-Gervais Les Bains\b/g, 'Saint-Gervais-les-Bains'],
+  [/\bLe Puy En Velay\b/g, 'Le Puy-en-Velay'], [/\bVillefranche Sur Saône\b/g, 'Villefranche-sur-Saône'],
+]
+function trainLong(s: string) {
+  s = s.replace(/\s+FT$/, '').replace(/\b[A-ZÉÈ]{3,}\b/g, w => w[0] + w.slice(1).toLowerCase())
+  for (const [re, to] of GARE_FIX) s = s.replace(re, to)
+  return s.replace(/\s+-\s+/g, ' – ')
+}
+
+/** Clé stable d'une ligne (favoris, dédoublonnage) : le parcours pour les TER, le numéro sinon. */
+export const routeKey = (r: Route) => r.kind === 'train' ? `train:${r.long}` : `${r.kind}:${r.short}`
+
+/** Lignes d'une liste sans doublon d'affichage (plusieurs TER ne font qu'une pastille « TER »). */
+export function distinctRoutes(net: Network, ids: number[]) {
+  const seen = new Set<string>()
+  return ids.filter(i => { const r = net.routes[i]; const k = r.kind === 'train' ? 'train' : routeKey(r); return seen.has(k) ? false : (seen.add(k), true) })
+}
 export interface Stop { i: number; name: string; lat: number; lon: number; place: number; feed: Kind }
 export interface Place { i: number; name: string; lat: number; lon: number; feeds: Kind[]; stops: number[]; routes: number[]; /** gares à distance de marche : [gare, mètres] */ stations: [number, number][] }
 /** Gare ferroviaire en correspondance avec au moins un arrêt du réseau. */
@@ -51,7 +81,9 @@ export async function loadNetwork(): Promise<Network> {
 }
 
 export function parseNetwork(raw: any): Network {
-  const routes: Route[] = raw.routes.map((r: any[], i: number) => ({ i, short: r[0], long: r[1], color: '#' + r[2], text: '#' + r[3], kind: r[4], agency: r[5] }))
+  const routes: Route[] = raw.routes.map((r: any[], i: number) => r[4] === 'train'
+    ? { i, short: 'TER', long: trainLong(r[1]), code: r[0], color: '#' + r[2], text: '#' + r[3], kind: r[4], agency: r[5] }
+    : { i, short: r[0], long: r[1], code: r[0], color: '#' + r[2], text: '#' + r[3], kind: r[4], agency: r[5] })
   const stops: Stop[] = raw.stops.map((s: any[], i: number) => ({ i, name: s[0], lat: s[1], lon: s[2], place: s[3], feed: s[4] }))
   const places: Place[] = raw.places.map((p: any[], i: number) => ({ i, name: p[0], lat: p[1], lon: p[2], feeds: p[3], stops: [], routes: [], stations: [] }))
   const stations: Station[] = (raw.stations ?? []).map((x: any[], i: number) => ({ i, name: x[0], lat: x[1], lon: x[2], uic: x[3], segment: x[4], links: x[5] }))

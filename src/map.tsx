@@ -4,7 +4,7 @@ import { Map as MLMap, LngLatBounds, type GeoJSONSource, type LngLatBoundsLike, 
 import type * as GeoJSON from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { stationLabel, type Kind, type Network } from './net'
+import { distinctRoutes, stationLabel, type Kind, type Network } from './net'
 import type { Journey } from './router'
 import { Icon, Pill } from './ui'
 
@@ -411,7 +411,7 @@ function LineTooltip({ net, hover, onRoute, onPlace, onClose }: { net: Network; 
             {st.links.map(([pl, m]) => {
               const body = (
                 <>
-                  <span class="tip-pills">{net.places[pl].routes.slice(0, 6).map(r => <Pill key={r} route={net.routes[r]} small />)}</span>
+                  <span class="tip-pills">{distinctRoutes(net, net.places[pl].routes).slice(0, 6).map(r => <Pill key={r} route={net.routes[r]} small />)}</span>
                   <span class="tip-text"><span class="tip-od">arrêt {net.places[pl].name} · {m < 40 ? 'sur place' : `${m} m`}</span></span>
                 </>
               )
