@@ -386,3 +386,16 @@ table.quality td { padding: 5px 4px; border-bottom: 1px solid var(--line); }
 .loc-pills { display: inline-flex; gap: 4px; }
 .loc-invite { color: var(--muted); font-size: 14px; border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.then { color: var(--muted); font-size: 12.5px; }
+.report-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; min-height: 44px; }
+
+/* Temps réel des trains */
+.train-when { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin-left: auto; }
+.rt { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.rt s { font-weight: 400; color: var(--muted); margin-left: 4px; }
+.rt-ok { color: #1a7f37; }
+.rt-late { color: #b35900; }
+.rt-bad { color: #c62828; }
+.train-row-item.off .train-dest strong { text-decoration: line-through; color: var(--muted); }
+.train-when s.when { color: var(--muted); font-weight: 400; }

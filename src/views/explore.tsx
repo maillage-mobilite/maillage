@@ -4,7 +4,7 @@ import { useMemo, useState } from 'preact/hooks'
 import {
   Network, Kind, KIND_LABEL, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow, fmtDuration
 } from '../net'
-import { Empty, Header, Icon, Pill, TheoNotice, When, usePreview } from '../ui'
+import { Empty, Header, Icon, Pill, ReportLink, TheoNotice, When, usePreview } from '../ui'
 import { TrainBoard } from '../trains'
 import { plan, type Journey } from '../router'
 import { LOCATION_META, type SavedLocation } from '../store'
@@ -159,7 +159,7 @@ function PlaceCard({ net, place, now, dist, onOpen }: { net: Network; place: num
           <Pill route={net.routes[g.route]} small />
           <span class="dep-head">{g.headsign}</span>
           {g.booking && <span class="badge-tad" title="Sur réservation">Résa</span>}
-          <span class="dep-times">{g.items.map((d, k) => <When key={k} abs={d.abs} now={now} theoretical={k === 0} />)}</span>
+          <span class="dep-times">{g.items.map((d, k) => <Fragment key={k}>{k > 0 && <span class="then">puis</span>}<When abs={d.abs} now={now} theoretical={k === 0} /></Fragment>)}</span>
         </DepRow>
       ))}
     </button>
@@ -231,6 +231,8 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
         </div>
         <p class="small muted">Accessibilité de l'arrêt : non renseignée par le réseau.</p>
       </section>
+      <ReportLink email={net.tenant.links.email} subject={`Signalement — arrêt ${p.name}`}
+        context={`Arrêt : ${p.name} (${p.lat.toFixed(5)}, ${p.lon.toFixed(5)})\nLignes : ${p.routes.map(r => net.routes[r].short).join(', ')}`} />
       <TheoNotice />
     </div>
   )
@@ -325,6 +327,8 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
           </ol>
         </>
       )}
+      <ReportLink email={net.tenant.links.email} subject={`Signalement — ligne ${r.short}`}
+        context={`Ligne : ${r.short} — ${r.long}\nSens : ${dirLabel(dir)}\nArrêt consulté : ${net.places[at]?.name ?? '—'}\nDate : ${date}`} />
       <TheoNotice />
     </div>
   )

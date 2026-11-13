@@ -4,7 +4,8 @@ import { Fares, Network, fmtHM, fmtDuration, fmtDay, addDays, fmtEur } from '../
 import { Journey, Leg, PlanResult, Point, plan, planArriveBy, tadBookable } from '../router'
 import { Suggestion, searchAddress, searchLocal } from '../search'
 import { Empty, Header, Icon, Pill, TheoNotice } from '../ui'
-import { TrainRowView, connectingTrains } from '../trains'
+import { RtNote, TrainRowView, connectingTrains } from '../trains'
+import { useTrainRealtime } from '../realtime'
 import { LOCATION_META, type SavedLocation } from '../store'
 import { distance, stationLabel } from '../net'
 
@@ -199,6 +200,9 @@ function Results({ net, now, res, at, fares, onOpen }: { net: Network; now: Now;
           Essayez d'activer le transport à la demande, ou contactez l'agence au {net.tenant.links.phone}.
         </Empty>
       )}
+      <p class="sr-only" role="status" aria-live="polite">
+        {res.journeys.length ? `${res.journeys.length} itinéraire${res.journeys.length > 1 ? 's' : ''} trouvé${res.journeys.length > 1 ? 's' : ''}` : res.directWalk ? 'Trajet à pied proposé' : 'Aucun itinéraire trouvé'}
+      </p>
       <ul class="results">
         {res.journeys.map((j, k) => {
           const inMin = Math.round((j.dep - now.sec) / 60)
@@ -329,15 +333,17 @@ function ArrivalTrains({ net, now, journey, date }: { net: Network; now: Now; jo
     const d = distance(end.lat, end.lon, st.lat, st.lon)
     if (d <= 500 && (!best || d < best.d)) best = { i: st.i, d }
   }
+  const rt = useTrainRealtime()
   if (!best || !(net.trains[best.i]?.length)) return null
   const trains = connectingTrains(net, best.i, date, journey.arr, Math.round(best.d))
+  const uic = net.stations[best.i].uic
   return (
     <section class="train-board">
       <div class="train-board-head"><Icon name="train" size={20} /><span><strong>Trains en correspondance · {stationLabel(net.stations[best.i].name)}</strong>
         <small>départs après votre arrivée, marche et 5 min de marge comprises</small></span></div>
       {trains.length === 0 ? <p class="muted small">Aucun train dans les 24 h suivant votre arrivée.</p>
-        : <ul class="train-list">{trains.map(t => <TrainRowView key={`${t.number}${t.abs}`} t={{ ...t, abs: t.abs }} now={now} kind="dep" />)}</ul>}
-      <p class="small muted">Horaires théoriques SNCF, sans garantie de correspondance : vérifiez sur SNCF Connect.</p>
+        : <ul class="train-list">{trains.map(t => <TrainRowView key={`${t.number}${t.abs}`} t={t} now={now} kind="dep" uic={uic} />)}</ul>}
+      <RtNote rt={rt} fallback="Horaires théoriques SNCF, sans garantie de correspondance : vérifiez sur SNCF Connect." />
     </section>
   )
 }

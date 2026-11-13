@@ -93,10 +93,10 @@ Aucun serveur applicatif : tout tourne dans le navigateur. C'est possible parce 
 
 ## Limites connues
 - Seuls les **TER** sont intégrés au calcul d'itinéraire : les TGV, OUIGO et Intercités apparaissent dans les tableaux des gares, mais pas dans les itinéraires (billets et réservation différents).
-- Horaires de trains théoriques. La SNCF publie un flux **temps réel GTFS-RT** (retards, suppressions) sur transport.data.gouv.fr, qui pourrait être branché ensuite.
+- **Temps réel des trains** (GTFS-RT SNCF via transport.data.gouv.fr) : retards, suppressions et arrêts supprimés dans les tableaux de gare et les correspondances, rafraîchis chaque minute tant qu'ils sont affichés. Le flux national pèse ~900 Ko : en production, un serveur le filtrerait sur les gares du réseau. Pas encore appliqué aux trajets TER dans le détail d'un itinéraire.
 - Le fichier `network.json` passe à ~770 Ko avec les trains, dont 2 154 passages pour Lyon Part-Dieu seule. On pourrait le réduire en limitant Lyon aux TER.
 - Les tracés recalés sur la voirie sont **probables, pas certains** : le trajet réel d'un car scolaire ou d'un TAD peut différer. À faire valider par le réseau, idéalement en lui proposant de publier ces tracés dans ses GTFS.
-- Horaires théoriques uniquement (le temps réel n'est pas publié en open data).
+- Bus et cars : horaires théoriques uniquement (le temps réel CoqueliGO n'est pas publié en open data).
 - L'expiration affichée pour l'urbain (2 janvier 2027) correspond au service du samedi : en semaine, les données publiées s'arrêtent dès le **18 décembre 2026**.
 - Les lignes scolaires sont désactivées par défaut dans le calcul : leur ouverture au public reste à confirmer.
 - Le TAD est modélisé comme des courses à horaires fixes. Le démonstrateur interdit d'enchaîner deux TAD.
