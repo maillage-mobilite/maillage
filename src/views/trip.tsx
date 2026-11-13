@@ -1,7 +1,7 @@
 // Onglet Itinéraire : saisie, résultats, détail, réservation TAD (démonstration).
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { Fares, Network, fmtHM, fmtDuration, fmtDay, addDays, fmtEur } from '../net'
-import { Journey, Leg, PlanResult, Point, plan, tadBookable } from '../router'
+import { Journey, Leg, PlanResult, Point, plan, planArriveBy, tadBookable } from '../router'
 import { Suggestion, searchAddress, searchLocal } from '../search'
 import { Empty, Header, Icon, Pill, TheoNotice } from '../ui'
 import { TrainRowView, connectingTrains } from '../trains'
@@ -13,6 +13,8 @@ export interface TripState {
   from: Point | null // null = ma position
   to: Point | null
   when: { date: string; sec: number } | null // null = maintenant
+  /** 'depart' : partir à `when` ; 'arrive' : arriver avant `when`. */
+  mode: 'depart' | 'arrive'
   scolaire: boolean
   tad: boolean
   train: boolean
@@ -23,7 +25,7 @@ export interface TripState {
   focusTo: number // incrémenté pour donner le focus au champ destination
 }
 
-export const initialTrip: TripState = { from: null, to: null, when: null, scolaire: false, tad: true, train: true, result: null, searchedAt: null, selected: null, booking: null, focusTo: 0 }
+export const initialTrip: TripState = { from: null, to: null, when: null, scolaire: false, tad: true, train: true, result: null, searchedAt: null, selected: null, booking: null, focusTo: 0, mode: 'depart' }
 
 function PlaceInput({ net, label, value, placeholder, onPick, near, autoFocusKey, allowMyPos }: {
   net: Network; label: string; value: Point | null; placeholder: string; onPick: (p: Point | null) => void
@@ -85,13 +87,16 @@ export function TripView({ net, now, pos, state, setState, fares }: {
     setBusy(true)
     setTimeout(() => {
       const at = s.when ?? now
-      const result = plan(net, s.from ?? myPos, s.to!, at.date, at.sec, { includeScolaire: s.scolaire, includeTad: s.tad, includeTrain: s.train, now })
+      const o = { includeScolaire: s.scolaire, includeTad: s.tad, includeTrain: s.train, now }
+      const result = s.mode === 'arrive' && s.when
+        ? planArriveBy(net, s.from ?? myPos, s.to!, at.date, at.sec, o)
+        : plan(net, s.from ?? myPos, s.to!, at.date, at.sec, o)
       setState(st => ({ ...st, result, searchedAt: at, selected: null, booking: null }))
       setBusy(false)
     }, 10)
   }
   // relance automatique quand les paramètres changent
-  useEffect(() => { if (state.to) run(state) }, [state.from?.lat, state.from?.lon, state.to?.lat, state.to?.lon, state.when?.date, state.when?.sec, state.scolaire, state.tad, state.train])
+  useEffect(() => { if (state.to) run(state) }, [state.from?.lat, state.from?.lon, state.to?.lat, state.to?.lon, state.when?.date, state.when?.sec, state.scolaire, state.tad, state.train, state.mode])
 
   if (state.booking != null && state.result) {
     return <TadBooking net={net} now={now} journey={state.result.journeys[state.booking]} date={state.searchedAt!.date}
@@ -114,10 +119,15 @@ export function TripView({ net, now, pos, state, setState, fares }: {
         <PlaceInput net={net} label="Arrivée" value={state.to} placeholder="Adresse, arrêt, lieu…" near={pos} autoFocusKey={state.focusTo}
           onPick={p => setState(s => ({ ...s, to: p }))} />
         <div class="when-row">
-          <select aria-label="Moment du départ" value={state.when ? 'at' : 'now'}
-            onChange={e => setState(s => ({ ...s, when: (e.target as HTMLSelectElement).value === 'now' ? null : { date: now.date, sec: now.sec - (now.sec % 300) + 300 } }))}>
+          <select aria-label="Moment du trajet" value={!state.when ? 'now' : state.mode === 'arrive' ? 'arrive' : 'at'}
+            onChange={e => {
+              const v = (e.target as HTMLSelectElement).value
+              const soon = { date: now.date, sec: now.sec - (now.sec % 300) + (v === 'arrive' ? 3600 : 300) }
+              setState(s => ({ ...s, mode: v === 'arrive' ? 'arrive' : 'depart', when: v === 'now' ? null : (s.when ?? soon) }))
+            }}>
             <option value="now">Partir maintenant</option>
             <option value="at">Partir à…</option>
+            <option value="arrive">Arriver avant…</option>
           </select>
           {state.when && (
             <input type="datetime-local" aria-label="Date et heure de départ" value={whenValue}
@@ -129,11 +139,14 @@ export function TripView({ net, now, pos, state, setState, fares }: {
               }} />
           )}
         </div>
+        <details class="options">
+          <summary>Options <small>({[state.tad && 'TAD', state.train && 'trains', state.scolaire && 'scolaires'].filter(Boolean).join(', ') || 'aucune'})</small></summary>
         <div class="toggles">
           <label class="toggle"><input type="checkbox" checked={state.tad} onChange={e => setState(s => ({ ...s, tad: (e.target as HTMLInputElement).checked }))} /> Transport à la demande</label>
           <label class="toggle"><input type="checkbox" checked={state.train} onChange={e => setState(s => ({ ...s, train: (e.target as HTMLInputElement).checked }))} /> Trains (TER)</label>
           <label class="toggle"><input type="checkbox" checked={state.scolaire} onChange={e => setState(s => ({ ...s, scolaire: (e.target as HTMLInputElement).checked }))} /> Lignes scolaires <small>(à confirmer)</small></label>
         </div>
+        </details>
       </div>
 
       {!state.to && <Empty icon="route" title="Où voulez-vous aller ?">Saisissez une adresse, un arrêt ou un lieu. Le calcul combine bus urbains, transport à la demande et cars Région.</Empty>}
@@ -145,7 +158,7 @@ export function TripView({ net, now, pos, state, setState, fares }: {
 
 function legIcons(net: Network, j: Journey) {
   return j.legs.map((l, k) => l.type === 'walk'
-    ? (l.meters > 60 ? <span key={k} class="leg-walk"><Icon name="walk" size={16} />{Math.max(1, Math.round((l.arr - l.dep) / 60))}</span> : null)
+    ? (l.meters > 60 ? <span key={k} class="leg-walk" aria-label={`${Math.max(1, Math.round((l.arr - l.dep) / 60))} minutes à pied`}><Icon name="walk" size={16} />{Math.max(1, Math.round((l.arr - l.dep) / 60))} min</span> : null)
     : <Pill key={k} route={net.routes[l.trip.route]} small />)
 }
 

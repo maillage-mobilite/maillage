@@ -25,6 +25,8 @@ export interface Network {
   reconciliation: { stops: number; places: number; cross_feed_merges: number }
   /** Recalage des tracés droits sur la voirie OSM (si effectué par le pipeline). */
   shapes?: { snapped_features: number; kept_straight: number; service: string }
+  /** Qualité des tracés après appariement sur la chaussée, par ligne (index de route). */
+  shapesQuality?: Record<string, { median_m: number; p95_m: number; max_m: number; blocks: number; kept_original: number }>
   stations: Station[]
   stationsSource: { name: string; licence: string; page: string } | null
   /** Passages de trains par gare (index de Station). */
@@ -58,6 +60,12 @@ export function parseNetwork(raw: any): Network {
   stops.forEach(s => places[s.place].stops.push(s.i))
   // Directions illisibles dans certains flux (numéros de course Oùra, codes TAD) → nom du terminus
   for (const t of trips) {
+    // boucle (même pôle au départ et à l'arrivée) : « Boucle via … » plutôt que « direction <là où l'on est> »
+    const first = stops[t.stops[0]].place, last = stops[t.stops[t.stops.length - 1]].place
+    if (first === last && t.stops.length > 2) {
+      t.headsign = `Boucle via ${places[stops[t.stops[Math.floor(t.stops.length / 2)]].place].name}`
+      continue
+    }
     const code = /^[A-Za-z]{0,3}\d+[A-Za-z]{0,3}$/.test(t.headsign) // ex. « 59604 », « G09r »
     if (!t.headsign || code || /^tad\b/i.test(t.headsign)) t.headsign = places[stops[t.stops[t.stops.length - 1]].place].name
   }
@@ -70,7 +78,7 @@ export function parseNetwork(raw: any): Network {
   for (const [a, b, sec] of raw.footpaths) foot[a].push([b, sec])
   return {
     generatedAt: raw.generated_at, tenant: raw.tenant, booking: raw.booking, windowStart: raw.window_start, windowDays: raw.window_days,
-    feeds: raw.feeds, reconciliation: raw.reconciliation, shapes: raw.shapes, stations, stationsSource: raw.stations_source ?? null,
+    feeds: raw.feeds, reconciliation: raw.reconciliation, shapes: raw.shapes, shapesQuality: raw.shapes_quality, stations, stationsSource: raw.stations_source ?? null,
     trains: Object.fromEntries(Object.entries(raw.trains ?? {}).map(([k, rows]: [string, any]) => [Number(k), rows.map((r: any[]) => ({
       dep: r[0], arr: r[1], svc: r[2], mode: r[3], line: r[4], number: r[5], from: r[6], to: r[7], noPickup: !!r[8], noDrop: !!r[9],
     }))])),

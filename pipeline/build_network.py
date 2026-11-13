@@ -237,6 +237,121 @@ def snap_to_roads(feats, cache_path, osrm_url, min_gap_m=250, max_ratio=2.2, min
     return {"snapped_features": snapped_feats, "kept_straight": kept, "service": osrm_url}
 
 
+
+# ---------------------------------------------------------------- appariement cartographique (map matching)
+
+def resample(coords, step_m):
+    """Points régulièrement espacés de step_m le long d'une polyligne (lon, lat)."""
+    out = [tuple(coords[0])]
+    acc = 0.0
+    for a, b in zip(coords, coords[1:]):
+        L = haversine(a[1], a[0], b[1], b[0])
+        t = step_m - acc
+        while t <= L:
+            out.append((a[0] + (b[0] - a[0]) * t / L, a[1] + (b[1] - a[1]) * t / L))
+            t += step_m
+        acc = (acc + L) % step_m if L else acc
+    if out[-1] != tuple(coords[-1]):
+        out.append(tuple(coords[-1]))
+    return out
+
+def deviations(points, line, cell=60.0):
+    """Distance (m) de chaque point à la polyligne `line` (index spatial en grille)."""
+    lat0 = line[0][1]
+    kx, ky = 111320 * math.cos(math.radians(lat0)), 110540
+    segs, grid = [], defaultdict(list)
+    for (x1, y1), (x2, y2) in zip(line, line[1:]):
+        a, b = (x1 * kx, y1 * ky), (x2 * kx, y2 * ky)
+        k = len(segs)
+        segs.append((a, b))
+        for gx in range(int(min(a[0], b[0]) // cell) - 1, int(max(a[0], b[0]) // cell) + 2):
+            for gy in range(int(min(a[1], b[1]) // cell) - 1, int(max(a[1], b[1]) // cell) + 2):
+                grid[(gx, gy)].append(k)
+    out = []
+    for lon, lat in points:
+        px, py = lon * kx, lat * ky
+        best = 1e9
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for k in grid.get((int(px // cell) + dx, int(py // cell) + dy), ()):
+                    (ax, ay), (bx, by) = segs[k]
+                    vx, vy = bx - ax, by - ay
+                    L2 = vx * vx + vy * vy or 1e-9
+                    t = max(0.0, min(1.0, ((px - ax) * vx + (py - ay) * vy) / L2))
+                    best = min(best, math.hypot(px - ax - t * vx, py - ay - t * vy))
+        out.append(best if best < 1e9 else cell * 2)
+    return out
+
+def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, radius=25,
+                   min_ratio=0.8, max_ratio=1.25, min_matched=0.9):
+    """
+    Appariement cartographique (OSRM /match, profil bus) des tracés des types `kinds` :
+    la géométrie renvoyée suit exactement la chaussée OSM. Par bloc de points :
+    on ne remplace que si ≥ min_matched des points sont appariés et si la longueur reste
+    dans [min_ratio ; max_ratio] × l'original, sinon on garde le bloc d'origine.
+    Renvoie des statistiques par ligne (écart corrigé médian / p95 / max).
+    """
+    import hashlib
+    try:
+        fetch_json(f"{osrm_url}/nearest/v1/driving/4.67,45.24")
+    except Exception as e:
+        log(f"appariement : moteur OSRM injoignable à {osrm_url} ({e}) — étape ignorée")
+        return None
+    cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
+    per_route = defaultdict(lambda: {"dev": [], "blocks": 0, "kept": 0})
+    done = 0
+    for f in feats:
+        if f["properties"].get("kind") not in kinds:
+            continue
+        orig = [tuple(x) for x in f["geometry"]["coordinates"]]
+        pts = resample(orig, step_m)
+        new = []
+        st = per_route[f["properties"]["route"]]
+        for k in range(0, max(1, len(pts) - 1), chunk - 1):
+            ch = pts[k:k + chunk]
+            if len(ch) < 2:
+                break
+            key = hashlib.md5(";".join(f"{x:.5f},{y:.5f}" for x, y in ch).encode()).hexdigest()
+            if key not in cache:
+                url = (f"{osrm_url}/match/v1/driving/" + ";".join(f"{x:.6f},{y:.6f}" for x, y in ch) +
+                       "?overview=full&geometries=geojson&gaps=ignore&tidy=false&radiuses=" + ";".join([str(radius)] * len(ch)))
+                try:
+                    r = fetch_json(url)
+                except Exception:
+                    r = {"code": "Error"}
+                if r.get("code") == "Ok" and r.get("matchings"):
+                    geom = [c for mm in r["matchings"] for c in mm["geometry"]["coordinates"]]
+                    matched = sum(1 for tp in r.get("tracepoints", []) if tp) / len(ch)
+                    cache[key] = {"geom": geom, "matched": matched}
+                else:
+                    cache[key] = None
+            hit = cache[key]
+            L0 = sum(haversine(a[1], a[0], b[1], b[0]) for a, b in zip(ch, ch[1:]))
+            ok = False
+            if hit and hit["matched"] >= min_matched and len(hit["geom"]) >= 2:
+                L1 = sum(haversine(a[1], a[0], b[1], b[0]) for a, b in zip(hit["geom"], hit["geom"][1:]))
+                ok = min_ratio * L0 <= L1 <= max_ratio * L0 + 80
+            seg = [tuple(c) for c in hit["geom"]] if ok else ch
+            st["blocks"] += 1
+            st["kept"] += 0 if ok else 1
+            new += seg if not new else seg[1:]
+        if len(new) >= 2:
+            st["dev"] += deviations(resample(orig, 30.0), new)
+            f["geometry"]["coordinates"] = simplify([(round(x, 6), round(y, 6)) for x, y in new], 2.0)
+            f["properties"]["matched"] = 1
+        done += 1
+        if done % 25 == 0:
+            log(f"  appariement : {done} tracés…")
+            json.dump(cache, open(cache_path, "w"))
+    json.dump(cache, open(cache_path, "w"))
+    report = {}
+    for route, st in per_route.items():
+        d = sorted(st["dev"]) or [0.0]
+        report[route] = {"median_m": round(d[len(d) // 2], 1), "p95_m": round(d[int(len(d) * 0.95)], 1),
+                         "max_m": round(d[-1], 1), "blocks": st["blocks"], "kept_original": st["kept"]}
+    log(f"appariement : {done} tracés appariés, {sum(v['kept_original'] for v in report.values())} blocs conservés tels quels")
+    return report
+
 # ---------------------------------------------------------------- portions à sens unique
 
 def oneway_pieces(feats, tol_m=25.0, step_m=20.0, min_len_m=150.0):
@@ -745,6 +860,16 @@ def main():
     snap_cfg = cfg.get("snap_to_roads")
     if snap_cfg and snap_cfg.get("enabled") and not args.no_snap:
         out["shapes"] = snap_to_roads(feats, os.path.join(args.cache, "osrm-cache.json"), snap_cfg["osrm_url"].rstrip("/"))
+    # appariement fin sur la chaussée (moteur OSRM local, profil bus), prioritaire pour le réseau du territoire
+    match_cfg = cfg.get("match_to_roads")
+    if match_cfg and match_cfg.get("enabled") and not args.no_snap:
+        rep = match_to_roads(feats, match_cfg["osrm_url"].rstrip("/"), set(match_cfg["kinds"]),
+                             os.path.join(args.cache, "osrm-match-cache.json"))
+        if rep:
+            out["shapes_quality"] = {route_ids_idx: v for route_ids_idx, v in rep.items()}
+            for ri, v in sorted(rep.items(), key=lambda x: -x[1]["p95_m"]):
+                log(f"    {routes[route_ids[ri]]['short']:7} écart corrigé médian {v['median_m']:5.1f} m · p95 {v['p95_m']:5.1f} m · max {v['max_m']:6.1f} m"
+                    f" · blocs gardés {v['kept_original']}/{v['blocks']}")
     with open(os.path.join(args.out, "network.json"), "w", encoding="utf-8") as fh:
         json.dump(out, fh, ensure_ascii=False, separators=(",", ":"))
     # portions à sens unique (flèches de sens uniquement là où l'aller et le retour diffèrent)

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { Fares, Kind, Network, loadFares, loadNetwork, parisNow, distance } from './net'
-import { MapView } from './map'
+import { MapView, type Basemap } from './map'
 import { Icon, RoutePreview } from './ui'
 import { RoutePreviewCard } from './preview'
 import { useFavorites } from './store'
@@ -10,7 +10,7 @@ import { TripView, TripState, initialTrip } from './views/trip'
 import { AlertsView, FaresView, MeView, SourcesView } from './views/more'
 
 type Tab = 'explore' | 'trip' | 'alerts' | 'me'
-type Detail = { kind: 'place'; id: number } | { kind: 'route'; id: number } | { kind: 'sources' } | { kind: 'fares' }
+type Detail = { kind: 'place'; id: number } | { kind: 'route'; id: number; from?: number; dir?: number } | { kind: 'sources' } | { kind: 'fares' }
 type Snap = 'peek' | 'half' | 'full'
 type Pos = { lat: number; lon: number; simulated: boolean; reason?: string }
 
@@ -93,6 +93,13 @@ function Shell({ net }: { net: Network }) {
   useEffect(() => { loadFares().then(setFares) }, [])
   const { fav, toggle } = useFavorites()
   const mapKinds = useMapKinds()
+  const [basemap, setBasemapState] = useState<Basemap>(() => {
+    try { const v = localStorage.getItem('maillage:basemap'); if (v === 'plan' || v === 'satellite' || v === 'velo') return v } catch { /* stockage indisponible */ }
+    return 'plan'
+  })
+  const setBasemap = (b: Basemap) => { setBasemapState(b); try { localStorage.setItem('maillage:basemap', b) } catch { /* idem */ } }
+  const [basemapOpen, setBasemapOpen] = useState(false)
+  const [mapReady, setMapReady] = useState(false)
   const [tab, setTab] = useState<Tab>('explore')
   const [stack, setStack] = useState<Detail[]>([])
   const [trip, setTripState] = useState<TripState>(initialTrip)
@@ -115,7 +122,7 @@ function Shell({ net }: { net: Network }) {
     setFocus({ lat: net.places[i].lat, lon: net.places[i].lon, key: Date.now() })
     if (snap === 'peek') setSnap('half')
   }
-  const openRoute = (i: number) => { push({ kind: 'route', id: i }); if (snap === 'peek') setSnap('half') }
+  const openRoute = (i: number, from?: number, dir?: number) => { push({ kind: 'route', id: i, from, dir }); if (snap === 'peek') setSnap('half') }
   const goTo = (i: number) => {
     const p = net.places[i]
     setTrip(s => ({ ...s, to: { lat: p.lat, lon: p.lon, label: p.name } }))
@@ -141,7 +148,7 @@ function Shell({ net }: { net: Network }) {
   let content: ComponentChildren
   if (tab === 'explore') {
     if (detail?.kind === 'place') content = <PlaceView key={detail.id} net={net} id={detail.id} now={now} pos={pos} fav={fav} toggleFav={toggle} onBack={back} onRoute={openRoute} onGo={goTo} onFrom={goFrom} />
-    else if (detail?.kind === 'route') content = <RouteView key={detail.id} net={net} id={detail.id} now={now} fav={fav} toggleFav={toggle} onBack={back} onPlace={openPlace} />
+    else if (detail?.kind === 'route') content = <RouteView key={`${detail.id}-${detail.from ?? ''}-${detail.dir ?? ''}`} net={net} id={detail.id} fromPlace={detail.from} fromDir={detail.dir} now={now} fav={fav} toggleFav={toggle} onBack={back} onPlace={openPlace} />
     else if (detail?.kind === 'sources') content = <SourcesView net={net} onBack={back} />
     else if (detail?.kind === 'fares' && fares) content = <FaresView net={net} fares={fares} onBack={back} />
     else content = <Explore net={net} now={now} pos={pos} fav={fav} onPlace={openPlace} onRoute={openRoute} onSearch={() => { setTrip(s => ({ ...s, focusTo: s.focusTo + 1 })); setTab('trip'); setSnap('full') }} />
@@ -158,13 +165,30 @@ function Shell({ net }: { net: Network }) {
 
   return (
     <RoutePreview.Provider value={preview}>
-    <div class={`shell${desktop ? ' desktop' : ''}`}>
-      <MapView net={net} user={pos} highlightRoute={highlightRoute} previewRoute={previewRoute} journey={journey} focus={focus} padding={padding} onPlace={openPlace} onRoute={openRoute} kinds={mapKinds.kinds} />
+    <div class={`shell${desktop ? ' desktop' : ''}${!desktop && snap === 'full' ? ' sheet-full' : ''}`}>
+      {!mapReady && <div class="map-loading" role="status"><div class="spinner" /> Chargement de la carte…</div>}
+      <MapView net={net} basemap={basemap} onReady={() => setMapReady(true)} user={pos} highlightRoute={highlightRoute} previewRoute={previewRoute} journey={journey} focus={focus} padding={padding} onPlace={openPlace} onRoute={openRoute} kinds={mapKinds.kinds} />
       {previewRoute != null && previewRoute !== highlightRoute && <RoutePreviewCard net={net} route={previewRoute} now={now} />}
       <MapFilters net={net} {...mapKinds} />
       <div class="topbar">
         <span class="brand"><span class="brand-mark" aria-hidden="true" />Maillage<em>démo · {net.tenant.name}</em></span>
-        <button class="icon-btn floating" onClick={locate} aria-label="Me localiser"><Icon name="locate" /></button>
+        <span class="top-actions">
+          <span class="basemap-wrap">
+            <button class="icon-btn floating" onClick={() => setBasemapOpen(o => !o)} aria-label="Fond de carte" aria-expanded={basemapOpen} aria-haspopup="menu"><Icon name="layers" /></button>
+            {basemapOpen && (
+              <div class="basemap-menu" role="menu" aria-label="Fond de carte">
+                {([['plan', 'Plan', 'Rues et lieux'], ['satellite', 'Satellite', 'Photos aériennes IGN'], ['velo', 'Vélo', 'Pistes et bandes cyclables']] as const).map(([k, label, sub]) => (
+                  <button key={k} role="menuitemradio" aria-checked={basemap === k} class={`basemap-opt${basemap === k ? ' on' : ''}`}
+                    onClick={() => { setBasemap(k); setBasemapOpen(false) }}>
+                    <span class={`basemap-thumb thumb-${k}`} aria-hidden="true" />
+                    <span><strong>{label}</strong><small>{sub}</small></span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </span>
+          <button class="icon-btn floating" onClick={locate} aria-label="Me localiser"><Icon name="locate" /></button>
+        </span>
       </div>
       <Sheet snap={snap} setSnap={setSnap} onHeight={setSheetH} desktop={desktop} scrollKey={`${tab}|${stack.length}|${trip.selected}|${trip.booking}`}>
         {content}

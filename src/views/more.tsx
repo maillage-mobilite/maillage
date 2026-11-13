@@ -96,6 +96,25 @@ export function SourcesView({ net, onBack }: { net: Network; onBack: () => void 
         <div><strong>{rc.places}</strong><span>pôles d'arrêt</span></div>
         <div><strong>{rc.cross_feed_merges}</strong><span>arrêts rapprochés entre flux</span></div>
       </div>
+      {net.shapesQuality && (
+        <section>
+          <h3 class="section-title">Tracés {net.tenant.name} recalés sur la chaussée</h3>
+          <p class="small">Chaque tracé est apparié au réseau routier OpenStreetMap (moteur OSRM local, profil bus, voies réservées comprises).
+            L'écart indique de combien l'ancien tracé s'éloignait de la route ; un bloc n'est remplacé que si l'appariement est fiable.</p>
+          <table class="quality">
+            <thead><tr><th>Ligne</th><th>Écart médian</th><th>p95</th><th>Max</th><th>Blocs gardés</th></tr></thead>
+            <tbody>
+              {Object.entries(net.shapesQuality).sort((a, b) => b[1].p95_m - a[1].p95_m).map(([ri, q]) => (
+                <tr key={ri}>
+                  <td><Pill route={net.routes[+ri]} small /></td>
+                  <td>{q.median_m} m</td><td>{q.p95_m} m</td><td>{q.max_m} m</td>
+                  <td>{q.kept_original}/{q.blocks}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
       {net.shapes && (
         <p class="small">
           <strong>{net.shapes.snapped_features} tracés recalés sur la voirie.</strong> Les flux TAD et une partie des lignes scolaires et régionales

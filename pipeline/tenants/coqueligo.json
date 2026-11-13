@@ -19,6 +19,12 @@
     "licence": "ODbL",
     "max_walk_m": 500
   },
+  "match_to_roads": {
+    "enabled": true,
+    "osrm_url": "http://localhost:5055",
+    "kinds": ["urbain", "scolaire", "tad"],
+    "note": "Moteur OSRM local, profil bus (pipeline/osrm/osrm.sh). Ignoré si le moteur n'est pas lancé."
+  },
   "rail_timetables": {
     "name": "Réseau SNCF TGV, Intercités et TER (GTFS)",
     "url": "https://www.data.gouv.fr/api/1/datasets/r/9ae758ec-cd7a-40cd-a890-bb3963224942",

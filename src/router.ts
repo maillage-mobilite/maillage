@@ -89,7 +89,7 @@ function nearStops(net: Network, p: Point, maxWalk: number): [number, number, nu
 }
 
 /** Un passage CSA : itinéraire arrivant au plus tôt en partant après `t0`. */
-function scan(net: Network, conns: Conn[], tripDates: Map<number, string>, origin: Point, dest: Point, t0: number, maxWalk: number): Journey | null {
+function scan(net: Network, conns: Conn[], tripDates: Map<number, string>, origin: Point, dest: Point, t0: number, maxWalk: number, allowDirectWalk = true): Journey | null {
   const n = net.stops.length
   const S = new Float64Array(n).fill(Infinity)
   const byVehicle = new Uint8Array(n)
@@ -104,7 +104,7 @@ function scan(net: Network, conns: Conn[], tripDates: Map<number, string>, origi
   for (const [s, sec] of nearStops(net, dest, maxWalk)) egress.set(s, sec)
 
   const directM = distance(origin.lat, origin.lon, dest.lat, dest.lon)
-  let best = directM <= 2500 ? t0 + walkSeconds(directM) : Infinity
+  let best = allowDirectWalk && directM <= 2500 ? t0 + walkSeconds(directM) : Infinity
   let bestStop = -1
 
   // première connexion partant après t0 (recherche dichotomique)
@@ -254,4 +254,52 @@ export function plan(net: Network, origin: Point, dest: Point, date: string, t0:
 function shift(j: Journey, base: number): Journey {
   if (!base) return j
   return { ...j, dep: j.dep + base, arr: j.arr + base, legs: j.legs.map(l => ({ ...l, dep: l.dep + base, arr: l.arr + base })) }
+}
+
+/**
+ * « Arriver avant » : itinéraires arrivant au plus tard à `deadline`, en partant le plus tard possible.
+ * On énumère les départs (CSA répété) à partir d'une fenêtre qui s'élargit (3 h, 8 h, 16 h avant)
+ * et on garde les options qui arrivent à l'heure, les plus tardives d'abord.
+ */
+export function planArriveBy(net: Network, origin: Point, dest: Point, date: string, deadline: number, opt: RouterOptions): PlanResult {
+  const maxWalk = opt.maxWalk ?? 1200
+  for (const span of [3, 8, 16]) {
+    const t0 = Math.max(0, deadline - span * 3600)
+    const { conns, tripDates } = getConnections(net, date, opt)
+    const found: Journey[] = []
+    const seen = new Set<string>()
+    let t = t0
+    for (let k = 0; k < 40; k++) {
+      const j = scan(net, conns, tripDates, origin, dest, t, maxWalk, false)
+      if (!j || j.arr > deadline) {
+        if (!j) break
+        if (j.key === 'walk') break
+        // l'option arrive trop tard : on avance quand même pour en chercher d'autres (correspondances plus rapides)
+        const first = j.legs.find(l => l.type === 'ride')
+        if (!first || first.dep > deadline) break
+        t = first.dep + 60
+        continue
+      }
+      if (!seen.has(j.key)) { seen.add(j.key); found.push(j) }
+      t = j.legs.find(l => l.type === 'ride')!.dep + 60
+    }
+    if (found.length) {
+      const PER_TRANSFER = 20 * 60
+      // à arrivée garantie, on préfère partir tard et avec peu de correspondances
+      const kept = found.filter(j => !found.some(o => o !== j && o.dep >= j.dep && o.transfers <= j.transfers && (o.dep > j.dep || o.transfers < j.transfers)))
+        .sort((a, b) => (b.dep - PER_TRANSFER * b.transfers) - (a.dep - PER_TRANSFER * a.transfers))
+        .slice(0, 4)
+      return { journeys: kept, directWalk: arriveByWalk(origin, dest, deadline), notes: [] }
+    }
+  }
+  const walk = arriveByWalk(origin, dest, deadline)
+  return { journeys: [], directWalk: walk, notes: walk ? [] : ["Aucun trajet n'arrive à l'heure demandée ce jour-là."] }
+}
+
+/** Marche directe (≤ 2,5 km) arrivant pile à l'heure demandée. */
+function arriveByWalk(origin: Point, dest: Point, deadline: number): Journey | undefined {
+  const d = distance(origin.lat, origin.lon, dest.lat, dest.lon)
+  if (d > 2500) return undefined
+  const sec = walkSeconds(d)
+  return finalize([{ type: 'walk', from: origin, to: dest, dep: deadline - sec, arr: deadline, meters: Math.round(d * 1.25) }])
 }

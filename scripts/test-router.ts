@@ -2,7 +2,7 @@
 // Vérifie surtout l'invariant clé : chaque horaire affiché existe dans les GTFS.
 import { readFileSync } from 'node:fs'
 import { parseNetwork, fmtHM, departures, addDays, distance, trainPasses, stationLabel } from '../src/net'
-import { plan, Point } from '../src/router'
+import { plan, planArriveBy, Point } from '../src/router'
 
 const net = parseNetwork(JSON.parse(readFileSync(new URL('../public/data/network.json', import.meta.url), 'utf8')))
 const place = (q: string): Point => {
@@ -70,6 +70,15 @@ for (const q of ['Marseille Saint-Charles', 'Grenoble', 'Avignon Centre']) {
 const noTrain = plan(net, gare, (() => { const p = net.places.find(p => p.name.startsWith('Marseille'))!; return { lat: p.lat, lon: p.lon, label: p.name } })(), DATE, 7 * 3600,
   { includeScolaire: false, includeTad: true, includeTrain: false, now })
 check(!noTrain.journeys.some(j => j.legs.some(l => l.type === 'ride' && net.routes[l.trip.route].kind === 'train')), 'option « sans train » ignorée')
+
+// --- « Arriver avant »
+for (const [from, to, deadline] of [['Varagnes', 'Roiffieux - Village', 8.5 * 3600], ['Gare Routière', 'Grenoble', 12 * 3600], ['Vanosc - Mairie', 'Gare Routière', 10 * 3600]] as const) {
+  const r = planArriveBy(net, place(from), place(to), DATE, deadline, { includeScolaire: false, includeTad: true, now })
+  console.log(`\nArriver avant ${fmtHM(deadline)} : ${from} → ${to}`)
+  r.journeys.forEach(j => console.log(`  ${fmtHM(j.dep)} → ${fmtHM(j.arr)}  corresp.=${j.transfers}  ${j.legs.filter(l => l.type === 'ride').map(l => net.routes[(l as any).trip.route].short).join(' + ')}`))
+  check(r.journeys.length > 0, `aucun trajet « arriver avant » ${from} → ${to}`)
+  check(r.journeys.every(j => j.arr <= deadline), `trajet arrivant après l'heure demandée (${from} → ${to})`)
+}
 
 // --- trains en correspondance
 for (const st of net.stations) {

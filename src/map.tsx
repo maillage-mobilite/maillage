@@ -19,6 +19,10 @@ export interface MapProps {
   padding: { top: number; bottom: number; left: number }
   onPlace: (i: number) => void
   onRoute: (i: number) => void
+  /** Appelé quand la carte et les couches du réseau sont prêtes. */
+  onReady?: () => void
+  /** Fond de carte : plan (OSM vectoriel), satellite (IGN) ou vélo (CyclOSM). */
+  basemap: Basemap
   /** Types de lignes visibles sur la carte, et 'gares' pour les gares SNCF. */
   kinds: (Kind | 'gares')[]
 }
@@ -46,6 +50,22 @@ function linesAt(m: MLMap, x: number, y: number, tol = 7): HoverItem[] {
     else merged.push({ ...it })
   }
   return merged.sort((a, b) => a.route - b.route).slice(0, 5)
+}
+
+export type Basemap = 'plan' | 'satellite' | 'velo'
+
+/** Fonds raster ouverts, sans clé d'accès, superposés au plan vectoriel (qui garde les polices). */
+const RASTER_BASEMAPS: Record<Exclude<Basemap, 'plan'>, { tiles: string[]; tileSize: number; maxzoom: number }> = {
+  // IGN Géoplateforme, orthophotographies (Licence Ouverte)
+  satellite: {
+    tiles: ['https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/jpeg'],
+    tileSize: 256, maxzoom: 19,
+  },
+  // CyclOSM (OpenStreetMap France) : pistes, bandes, voies vertes, stationnements vélo
+  velo: {
+    tiles: ['a', 'b', 'c'].map(sub => `https://${sub}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png`),
+    tileSize: 256, maxzoom: 19,
+  },
 }
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
@@ -80,6 +100,8 @@ export function MapView(props: MapProps) {
   const pending = useRef<(() => void)[]>([])
   const onPlace = useRef(props.onPlace)
   onPlace.current = props.onPlace
+  const onReady = useRef(props.onReady)
+  onReady.current = props.onReady
   const [hover, setHover] = useState<Hover | null>(null)
   const hoverRef = useRef<Hover | null>(null)
   const fittedFor = useRef<number | null>(null)
@@ -126,9 +148,17 @@ export function MapView(props: MapProps) {
           features: net.stations.map(st => ({ type: 'Feature', properties: { i: st.i, label: stationLabel(st.name) }, geometry: { type: 'Point', coordinates: [st.lon, st.lat] } })),
         },
       })
+      for (const [id, b] of Object.entries(RASTER_BASEMAPS)) {
+        m.addSource(`basemap-${id}`, { type: 'raster', tiles: b.tiles, tileSize: b.tileSize, maxzoom: b.maxzoom })
+      }
       m.addSource('journey', { type: 'geojson', data: EMPTY })
       m.addSource('user', { type: 'geojson', data: EMPTY })
 
+      // fonds raster sous les couches du réseau (masqués par défaut)
+      for (const id of Object.keys(RASTER_BASEMAPS)) {
+        m.addLayer({ id: `basemap-${id}`, type: 'raster', source: `basemap-${id}`, layout: { visibility: 'none' },
+          paint: { 'raster-opacity': id === 'velo' ? 0.95 : 1 } })
+      }
       m.addLayer({ id: 'lines-casing', type: 'line', source: 'lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 15, 7], 'line-opacity': 0.9 } })
       m.addLayer({ id: 'lines', type: 'line', source: 'lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -226,6 +256,7 @@ export function MapView(props: MapProps) {
       m.on('movestart', () => { if (!hoverRef.current?.pinned) setHover(null) })
       ready.current = true
       pending.current.splice(0).forEach(fn => fn())
+      onReady.current?.()
     })
     return () => { m.remove(); map.current = null; ready.current = false }
   }, [])
@@ -334,6 +365,13 @@ export function MapView(props: MapProps) {
     })
   }, [props.journey])
 
+  // fond de carte
+  useEffect(() => {
+    whenReady(() => {
+      for (const id of Object.keys(RASTER_BASEMAPS)) map.current!.setLayoutProperty(`basemap-${id}`, 'visibility', id === props.basemap ? 'visible' : 'none')
+    })
+  }, [props.basemap])
+
   // recentrage
   useEffect(() => {
     if (!props.focus) return
@@ -345,9 +383,10 @@ export function MapView(props: MapProps) {
       <div ref={el} class="map" role="region" aria-label="Carte du réseau" />
       {hover && <LineTooltip net={props.net} hover={hover} onRoute={r => { setHover(null); props.onRoute(r) }} onPlace={pl => { setHover(null); props.onPlace(pl) }} onClose={() => setHover(null)} />}
       <div class="map-credits">
-        © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">contributeurs OpenStreetMap</a> ·{' '}
-        <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> ·{' '}
-        <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>
+        {props.basemap === 'satellite' && <>© <a href="https://geoservices.ign.fr/" target="_blank" rel="noopener">IGN – orthophotos</a> · </>}
+        {props.basemap === 'velo' && <><a href="https://www.cyclosm.org/" target="_blank" rel="noopener">CyclOSM</a> · </>}
+        © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">contributeurs OpenStreetMap</a>
+        {props.basemap === 'plan' && <> · <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> · <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a></>}
       </div>
     </>
   )
