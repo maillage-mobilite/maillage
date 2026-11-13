@@ -1,0 +1,181 @@
+// Modèle de données du réseau + fonctions horaires (prochains départs, calendriers).
+// Toutes les heures sont en secondes depuis minuit, heure de Paris.
+
+export type Kind = 'urbain' | 'scolaire' | 'tad' | 'region'
+
+export interface Route { i: number; short: string; long: string; color: string; text: string; kind: Kind; agency: string }
+export interface Stop { i: number; name: string; lat: number; lon: number; place: number; feed: Kind }
+export interface Place { i: number; name: string; lat: number; lon: number; feeds: Kind[]; stops: number[]; routes: number[] }
+export interface Trip { i: number; route: number; service: number; headsign: string; dir: number; stops: number[]; arr: number[]; dep: number[]; booking: boolean }
+export interface FeedReport {
+  id: string; name: string; kind: Kind; licence: string; page: string; url: string; last_modified: string | null
+  start: string | null; end: string | null; days_left: number | null; fixes: Record<string, number>; checks: Record<string, number | null>
+}
+export interface Booking { deadline_day_before: string; phone: string; confirm_window: string; fare: string }
+
+export interface Network {
+  generatedAt: string
+  tenant: { tenant: string; name: string; territory: string; center: [number, number]; bbox: number[]; links: Record<string, string> }
+  booking: Record<string, Booking>
+  windowStart: string
+  windowDays: number
+  feeds: FeedReport[]
+  reconciliation: { stops: number; places: number; cross_feed_merges: number }
+  routes: Route[]
+  stops: Stop[]
+  places: Place[]
+  trips: Trip[]
+  services: string[]
+  /** footpaths[stop] = [[toStop, seconds], ...] */
+  foot: [number, number][][]
+  /** tripsAt[stop] = [[trip, position], ...] */
+  tripsAt: [number, number][][]
+}
+
+export async function loadNetwork(): Promise<Network> {
+  const res = await fetch(`${import.meta.env.BASE_URL}data/network.json`)
+  if (!res.ok) throw new Error(`Données indisponibles (${res.status})`)
+  return parseNetwork(await res.json())
+}
+
+export function parseNetwork(raw: any): Network {
+  const routes: Route[] = raw.routes.map((r: any[], i: number) => ({ i, short: r[0], long: r[1], color: '#' + r[2], text: '#' + r[3], kind: r[4], agency: r[5] }))
+  const stops: Stop[] = raw.stops.map((s: any[], i: number) => ({ i, name: s[0], lat: s[1], lon: s[2], place: s[3], feed: s[4] }))
+  const places: Place[] = raw.places.map((p: any[], i: number) => ({ i, name: p[0], lat: p[1], lon: p[2], feeds: p[3], stops: [], routes: [] }))
+  const trips: Trip[] = raw.trips.map((t: any[], i: number) => ({ i, route: t[0], service: t[1], headsign: t[2], dir: t[3], stops: t[4], arr: t[5], dep: t[6], booking: !!t[7] }))
+  stops.forEach(s => places[s.place].stops.push(s.i))
+  // Directions illisibles dans certains flux (numéros de course Oùra, codes TAD) → nom du terminus
+  for (const t of trips) {
+    const code = /^[A-Za-z]{0,3}\d+[A-Za-z]{0,3}$/.test(t.headsign) // ex. « 59604 », « G09r »
+    if (!t.headsign || code || /^tad\b/i.test(t.headsign)) t.headsign = places[stops[t.stops[t.stops.length - 1]].place].name
+  }
+  const tripsAt: [number, number][][] = stops.map(() => [])
+  trips.forEach(t => t.stops.forEach((s, k) => tripsAt[s].push([t.i, k])))
+  const placeRoutes = places.map(() => new Set<number>())
+  trips.forEach(t => t.stops.forEach(s => placeRoutes[stops[s].place].add(t.route)))
+  places.forEach(p => { p.routes = [...placeRoutes[p.i]].sort((a, b) => a - b) })
+  const foot: [number, number][][] = stops.map(() => [])
+  for (const [a, b, sec] of raw.footpaths) foot[a].push([b, sec])
+  return {
+    generatedAt: raw.generated_at, tenant: raw.tenant, booking: raw.booking, windowStart: raw.window_start, windowDays: raw.window_days,
+    feeds: raw.feeds, reconciliation: raw.reconciliation, routes, stops, places, trips, services: raw.services, foot, tripsAt,
+  }
+}
+
+// ------------------------------------------------------------------ temps
+
+const TZ = 'Europe/Paris'
+
+/** Date (AAAA-MM-JJ) et secondes depuis minuit, à Paris. */
+export function parisNow(d = new Date()): { date: string; sec: number } {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('fr-FR', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d).map(p => [p.type, p.value]))
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, sec: +parts.hour * 3600 + +parts.minute * 60 + +parts.second }
+}
+
+export function addDays(date: string, n: number): string {
+  const d = new Date(date + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+export function dayIndex(net: Network, date: string): number {
+  return Math.round((Date.parse(date + 'T12:00:00Z') - Date.parse(net.windowStart + 'T12:00:00Z')) / 86400000)
+}
+
+export function serviceActive(net: Network, service: number, date: string): boolean {
+  const k = dayIndex(net, date)
+  return k >= 0 && k < net.windowDays && net.services[service][k] === '1'
+}
+
+export function inWindow(net: Network, date: string): boolean {
+  const k = dayIndex(net, date)
+  return k >= 1 && k < net.windowDays
+}
+
+export function fmtHM(sec: number): string {
+  const s = ((sec % 86400) + 86400) % 86400
+  return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`
+}
+
+export function fmtDuration(sec: number): string {
+  const m = Math.round(sec / 60)
+  if (m < 60) return `${m} min`
+  return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`
+}
+
+export function fmtDay(date: string, ref: string): string {
+  if (date === ref) return "aujourd'hui"
+  if (date === addDays(ref, 1)) return 'demain'
+  return new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(date + 'T12:00:00Z'))
+}
+
+// ------------------------------------------------------------------ départs
+
+export interface Departure { trip: Trip; pos: number; date: string; time: number; /** secondes absolues depuis minuit de `from.date` */ abs: number }
+
+/**
+ * Prochains départs depuis un ensemble d'arrêts, à partir d'un instant donné,
+ * en regardant jusqu'à `horizonDays` jours en avant (réseaux peu fréquents).
+ */
+export function departures(net: Network, stopIds: number[], from: { date: string; sec: number }, opts: { limit?: number; horizonDays?: number; routes?: Set<number> } = {}): Departure[] {
+  const limit = opts.limit ?? 30
+  const out: Departure[] = []
+  for (let d = -1; d <= (opts.horizonDays ?? 2); d++) {
+    const date = addDays(from.date, d)
+    for (const s of stopIds) {
+      for (const [ti, pos] of net.tripsAt[s]) {
+        const t = net.trips[ti]
+        if (pos === t.stops.length - 1) continue // terminus : pas de départ
+        if (opts.routes && !opts.routes.has(t.route)) continue
+        if (!serviceActive(net, t.service, date)) continue
+        const abs = t.dep[pos] + d * 86400
+        if (abs < from.sec) continue
+        out.push({ trip: t, pos, date, time: t.dep[pos], abs })
+      }
+    }
+    if (out.length >= limit && d >= 0) break
+  }
+  out.sort((a, b) => a.abs - b.abs)
+  return out.slice(0, limit)
+}
+
+/** Courses d'une ligne actives à une date, par sens, triées par heure de départ. */
+export function tripsOfRoute(net: Network, route: number, date: string): Trip[][] {
+  const dirs: Trip[][] = [[], []]
+  for (const t of net.trips) {
+    if (t.route === route && serviceActive(net, t.service, date)) (dirs[t.dir] ?? dirs[0]).push(t)
+  }
+  dirs.forEach(d => d.sort((a, b) => a.dep[0] - b.dep[0]))
+  return dirs
+}
+
+/** Course « type » d'une ligne pour un sens (celle qui dessert le plus d'arrêts). */
+export function referenceTrip(net: Network, route: number, dir: number): Trip | undefined {
+  let best: Trip | undefined
+  for (const t of net.trips) if (t.route === route && t.dir === dir && (!best || t.stops.length > best.stops.length)) best = t
+  return best
+}
+
+// ------------------------------------------------------------------ géo
+
+export function distance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const r = 6371000, toR = Math.PI / 180
+  const dphi = (lat2 - lat1) * toR, dl = (lon2 - lon1) * toR
+  const a = Math.sin(dphi / 2) ** 2 + Math.cos(lat1 * toR) * Math.cos(lat2 * toR) * Math.sin(dl / 2) ** 2
+  return 2 * r * Math.asin(Math.sqrt(a))
+}
+
+/** Temps de marche estimé (détour 1,25 ; 4,3 km/h). */
+export const walkSeconds = (meters: number) => Math.round((meters * 1.25) / 1.2)
+
+export function nearestPlaces(net: Network, lat: number, lon: number, max = 6, radius = 1500) {
+  return net.places
+    .map(p => ({ p, d: distance(lat, lon, p.lat, p.lon) }))
+    .filter(x => x.d <= radius && x.p.stops.some(s => net.tripsAt[s].length))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, max)
+}
+
+export const KIND_LABEL: Record<Kind, string> = { urbain: 'Urbain', scolaire: 'Scolaire', tad: 'Transport à la demande', region: 'Car Région' }

@@ -1,0 +1,24 @@
+{
+  "name": "maillage-demonstrateur",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "data": "python3 -I pipeline/build_network.py pipeline/tenants/coqueligo.json --cache .cache --out public/data",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test:router": "vite-node scripts/test-router.ts"
+  },
+  "dependencies": {
+    "maplibre-gl": "^5.24.1",
+    "preact": "^11.2.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@types/geojson": "^7946.0.16",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vite-node": "^6.0.0"
+  }
+}
