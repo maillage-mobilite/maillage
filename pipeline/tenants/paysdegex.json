@@ -50,6 +50,25 @@
       "page": "https://transport.data.gouv.fr/datasets/horaires-sncf",
       "licence": "ODbL",
       "filter": { "stop_id_contains": "OCETrain TER-", "near_existing_stops_m": 500 }
+    },
+    {
+      "id": "train-ch", "kind": "train", "name": "Trains suisses (CFF) en correspondance",
+      "url": "https://data.opentransportdata.swiss/dataset/timetable-2026-gtfs2020/permalink",
+      "page": "https://data.opentransportdata.swiss/fr/dataset/timetable-2026-gtfs2020",
+      "licence": "opentransportdata.swiss (usage libre, source à citer)",
+      "extract": {
+        "sources": [
+          "https://data.opentransportdata.swiss/dataset/timetable-2026-gtfs2020/permalink",
+          "https://data.opentransportdata.swiss/dataset/timetable-2027-gtfs2020/permalink"
+        ],
+        "lat": 46.215, "lon": 6.11, "radius_km": 13
+      },
+      "train_pill": "short", "route_color": "D52B1E",
+      "filter": {
+        "exclude_agency_contains": ["chemins de fer français"],
+        "exclude_route_short_regex": "RL\\d+|L\\d+|TER",
+        "near_existing_stops_m": 500
+      }
     }
   ],
   "data_gaps": [

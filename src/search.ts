@@ -10,6 +10,8 @@ export interface Suggestion {
   id?: number
   /** Couleur de la catégorie (lieux). */
   color?: string
+  /** Pôle desservi seulement par des trains (gare suisse, Lausanne…). */
+  rail?: boolean
 }
 
 export const normalize = (s: string) =>
@@ -29,7 +31,8 @@ export function searchLocal(net: Network, q: string, near?: { lat: number; lon: 
     const d = near ? distance(near.lat, near.lon, p.lat, p.lon) : 0
     const score = (n.startsWith(nq) ? 0 : 1) + d / 20000 + (p.routes.length ? 0 : 2)
     const lines = distinctRoutes(net, p.routes).slice(0, 5).map(r => net.routes[r].short).join(' · ')
-    out.push({ kind: 'place', label: p.name, detail: `Arrêt · ${lines}${d > 15000 ? ` · ${Math.round(d / 1000)} km` : ''}`, lat: p.lat, lon: p.lon, id: p.i, score })
+    const rail = p.feeds.length > 0 && p.feeds.every(f => f.startsWith('train'))
+    out.push({ kind: 'place', label: p.name, detail: `${rail ? 'Gare' : 'Arrêt'} · ${lines}${d > 15000 ? ` · ${Math.round(d / 1000)} km` : ''}`, lat: p.lat, lon: p.lon, id: p.i, score, rail })
   }
   for (const st of net.stations) {
     const n = normalize(`gare ${st.name}`)
@@ -39,7 +42,7 @@ export function searchLocal(net: Network, q: string, near?: { lat: number; lon: 
   }
   for (const r of net.routes) {
     const n = normalize(`${r.short} ${r.long}`)
-    if (words.every(w => n.includes(w))) out.push({ kind: 'route', label: r.kind === 'train' ? `TER ${r.long}` : `Ligne ${r.short}`, detail: r.kind === 'train' ? 'Train régional SNCF' : r.long, id: r.i, score: normalize(r.short) === nq ? -1 : 0.5 })
+    if (words.every(w => n.includes(w))) out.push({ kind: 'route', label: r.kind === 'train' ? `${r.short} ${r.long}` : `Ligne ${r.short}`, detail: r.kind === 'train' ? (r.short === 'TER' ? 'Train régional SNCF' : `Train · ${r.agency}`) : r.long, id: r.i, score: normalize(r.short) === nq ? -1 : 0.5 })
   }
   return out.sort((a, b) => a.score - b.score).slice(0, 6)
 }

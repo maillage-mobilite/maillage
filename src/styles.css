@@ -159,7 +159,8 @@ input, select { font: inherit; color: var(--text); background: var(--surface-2);
 input:focus, select:focus { border-color: var(--brand); outline: none; background: var(--surface); }
 .suggest { position: absolute; top: 100%; left: 0; right: -52px; z-index: 10; list-style: none; margin: 4px 0 0; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.16); max-height: 320px; overflow-y: auto; }
 .suggest button { display: flex; gap: 10px; align-items: center; width: 100%; padding: 9px 10px; border-radius: 8px; min-height: 44px; }
-.suggest button:hover { background: var(--surface-2); }
+.suggest button:hover, .suggest button.active { background: var(--surface-2); }
+.suggest button.active { box-shadow: inset 3px 0 0 var(--brand); }
 .suggest span { display: flex; flex-direction: column; min-width: 0; }
 .suggest small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .when-row { display: flex; gap: 8px; }

@@ -29,12 +29,15 @@ function trainLong(s: string) {
 }
 
 /** Clé stable d'une ligne (favoris, dédoublonnage) : le parcours pour les TER, le numéro sinon. */
-export const routeKey = (r: Route) => r.kind === 'train' ? `train:${r.long}` : `${r.kind}:${r.short}`
+// trains suisses : le numéro (IR90) identifie la ligne ; une catégorie seule (IR, EC) en regroupe plusieurs, on garde le parcours
+// (TER : « train:parcours », format des favoris déjà enregistrés)
+export const routeKey = (r: Route) => r.kind !== 'train' ? `${r.kind}:${r.short}`
+  : r.short === 'TER' ? `train:${r.long}` : /\d/.test(r.short) ? `train:${r.short}` : `train:${r.short}:${r.long}`
 
 /** Lignes d'une liste sans doublon d'affichage (plusieurs TER ne font qu'une pastille « TER »). */
 export function distinctRoutes(net: Network, ids: number[]) {
   const seen = new Set<string>()
-  return ids.filter(i => { const r = net.routes[i]; const k = r.kind === 'train' ? 'train' : routeKey(r); return seen.has(k) ? false : (seen.add(k), true) })
+  return ids.filter(i => { const r = net.routes[i]; const k = r.kind === 'train' && r.short === 'TER' ? 'train' : routeKey(r); return seen.has(k) ? false : (seen.add(k), true) })
 }
 export interface Stop { i: number; name: string; lat: number; lon: number; place: number; feed: Kind }
 export interface Place { i: number; name: string; lat: number; lon: number; feeds: Kind[]; stops: number[]; routes: number[]; /** gares à distance de marche : [gare, mètres] */ stations: [number, number][] }
@@ -86,8 +89,9 @@ export async function loadNetwork(): Promise<Network> {
 }
 
 export function parseNetwork(raw: any): Network {
+  // trains : pastille « TER » (codes SNCF non affichés aux voyageurs) ou numéro fourni par le pipeline (CFF : IR90, RE33, L1…)
   const routes: Route[] = raw.routes.map((r: any[], i: number) => r[4] === 'train'
-    ? { i, short: 'TER', long: trainLong(r[1]), code: r[0], color: '#' + r[2], text: '#' + r[3], kind: r[4], agency: r[5] }
+    ? { i, short: r[6] ?? 'TER', long: r[6] ? r[1].replace(/\s+-\s+/g, ' – ') : trainLong(r[1]), code: r[0], color: '#' + r[2], text: '#' + r[3], kind: r[4], agency: r[5] }
     : { i, short: r[0], long: r[1], code: r[0], color: '#' + r[2], text: '#' + r[3], kind: r[4], agency: r[5] })
   const stops: Stop[] = raw.stops.map((s: any[], i: number) => ({ i, name: s[0], lat: s[1], lon: s[2], place: s[3], feed: s[4] }))
   const places: Place[] = raw.places.map((p: any[], i: number) => ({ i, name: p[0], lat: p[1], lon: p[2], feeds: p[3], stops: [], routes: [], stations: [] }))
@@ -239,7 +243,7 @@ export function nearestPlaces(net: Network, lat: number, lon: number, max = 6, r
     .slice(0, max)
 }
 
-export const KIND_LABEL: Record<Kind, string> = { urbain: 'Urbain', scolaire: 'Scolaire', tad: 'Transport à la demande', region: 'Car Région', train: 'Train TER' }
+export const KIND_LABEL: Record<Kind, string> = { urbain: 'Urbain', scolaire: 'Scolaire', tad: 'Transport à la demande', region: 'Car Région', train: 'Train' }
 
 // ------------------------------------------------------------------ tarifs
 

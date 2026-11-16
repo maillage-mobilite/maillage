@@ -196,7 +196,7 @@ export function SourcesView({ net, onBack }: { net: Network; onBack: () => void 
           {Object.keys(f.fixes).length > 0 && (
             <ul class="fixes">{Object.entries(f.fixes).map(([k, v]) => <li key={k}>{v} {FIX_LABELS[k] ?? k}</li>)}</ul>
           )}
-          <a class="small" href={f.page} target="_blank" rel="noopener">Voir sur transport.data.gouv.fr ↗</a>
+          <a class="small" href={f.page} target="_blank" rel="noopener">Voir sur {(() => { try { return new URL(f.page).hostname.replace(/^www\./, '') } catch { return 'le site source' } })()} ↗</a>
         </div>
       ))}
       <div class="card static">

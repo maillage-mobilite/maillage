@@ -747,7 +747,24 @@ def main():
     for feed in cfg["feeds"]:
         fid, kind = feed["id"], feed["kind"]
         path = os.path.join(args.cache, f"{cfg['tenant']}-{fid}.zip")
-        meta = download(feed["url"], path)
+        if feed.get("extract"):
+            # très gros flux (horaire national suisse) : on n'en garde que les courses du mode voulu
+            # qui desservent la zone, dans un petit GTFS (pipeline/extract_gtfs.py)
+            ex = feed["extract"]
+            srcs = []
+            for k, u in enumerate(ex["sources"]):
+                sp = os.path.join(args.cache, f"{fid}-source{k}.zip")
+                download(u, sp, max_age_h=ex.get("max_age_h", 72))
+                srcs.append(sp)
+            if not os.path.exists(path) or any(os.path.getmtime(sp) > os.path.getmtime(path) for sp in srcs):
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("extract_gtfs", os.path.join(os.path.dirname(os.path.abspath(__file__)), "extract_gtfs.py"))
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.extract(srcs, path, ex["lat"], ex["lon"], ex["radius_km"])
+            meta = {"last_modified": None}
+        else:
+            meta = download(feed["url"], path)
         g = Gtfs(path)
         rep = {"id": fid, "name": feed["name"], "kind": kind, "licence": feed["licence"],
                "page": feed["page"], "url": feed["url"], "last_modified": meta.get("last_modified"),
@@ -777,9 +794,13 @@ def main():
             raw_stops[s["stop_id"]] = (s["stop_name"], lat, lon)
 
         raw_routes = {}
+        # lignes déjà fournies par un autre flux (ex. Léman Express et TER, présents dans le flux SNCF)
+        excl_short = feed.get("filter", {}).get("exclude_route_short_regex")
         for r in g.rows("routes.txt"):
             ag = agencies.get(r.get("agency_id", ""), next(iter(agencies.values()), ""))
             if any(e in ag.lower() for e in excl):
+                continue
+            if excl_short and re.fullmatch(excl_short, (r.get("route_short_name") or "").strip()):
                 continue
             raw_routes[r["route_id"]] = (r, ag)
 
@@ -912,7 +933,9 @@ def main():
             short = (r.get("route_short_name") or "").replace("Ligne ", "").strip()
             long_ = nice_name(r.get("route_long_name") or "")
             long_ = re.sub(r"^(Ligne\s+(0?" + re.escape(short) + r"|\d+)\b|" + re.escape(short) + r"\b)\s*(-\s*)?", "", long_).strip() if short else long_
-            routes[rid] = {"short": short,
+            if kind == "train" and feed.get("route_color"):
+                color = feed["route_color"].lstrip("#").upper()
+            routes[rid] = {"short": short, "pill": short if feed.get("train_pill") == "short" else None,
                            "long": long_ or nice_name(r.get("route_long_name") or ""), "color": color,
                            "text": best_text(color), "kind": kind, "agency": ag,
                            "declared_text": (r.get("route_text_color") or "").upper()}
@@ -1124,7 +1147,8 @@ def main():
         "window_days": win_days,
         "feeds": feeds_report,
         "reconciliation": {"stops": len(ids), "places": len(places), "cross_feed_merges": cross_merges},
-        "routes": [[routes[r]["short"], routes[r]["long"], routes[r]["color"], routes[r]["text"], routes[r]["kind"], routes[r]["agency"]] for r in route_ids],
+        "routes": [[routes[r]["short"], routes[r]["long"], routes[r]["color"], routes[r]["text"], routes[r]["kind"], routes[r]["agency"]]
+                   + ([routes[r]["pill"]] if routes[r].get("pill") else []) for r in route_ids],
         "stops": [[stops[s]["name"], round(stops[s]["lat"], 6), round(stops[s]["lon"], 6), place_of[s], stops[s]["feed"]] for s in ids],
         "places": [[p["name"], p["lat"], p["lon"], p["feeds"]] for p in places],
         "services": ["".join("1" if d in services[s] else "0" for d in win_dates) for s in svc_ids],

@@ -134,9 +134,9 @@ export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch, onGoLo
         <h3 class="section-title">Toutes les lignes</h3>
         {(['urbain', 'tad', 'region', 'scolaire', 'train'] as Kind[]).filter(k => net.routes.some(r => r.kind === k)).map(k => (
           <div class="line-group" key={k}>
-            <div class="line-group-label">{KIND_LABEL[k]}{k === 'scolaire' ? ' · ouverture au public à confirmer' : k === 'train' ? ' · en correspondance (SNCF)' : ''}</div>
+            <div class="line-group-label">{KIND_LABEL[k]}{k === 'scolaire' ? ' · ouverture au public à confirmer' : k === 'train' ? ` · en correspondance (${net.routes.some(r => r.kind === 'train' && r.short !== 'TER') ? 'SNCF et CFF' : 'SNCF'})` : ''}</div>
             {k === 'train' && !showTrains
-              ? <button class="btn ghost" onClick={() => setShowTrains(true)} aria-expanded={false}>Afficher les {uniqueRoutes('train').length} lignes TER</button>
+              ? <button class="btn ghost" onClick={() => setShowTrains(true)} aria-expanded={false}>Afficher les {uniqueRoutes('train').length} lignes de train</button>
               : k === 'train' ? <ul class="ter-list">
               {uniqueRoutes(k).sort((a, b) => a.long.localeCompare(b.long, 'fr')).map(r => (
                 <li key={r.i}><TerRow r={r} onRoute={onRoute} /></li>

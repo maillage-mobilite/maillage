@@ -1,4 +1,5 @@
 // Onglet Itinéraire : saisie, résultats, détail, réservation TAD (démonstration).
+import type { ComponentChildren } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { Fares, Kind, Network, fmtHM, fmtDuration, fmtDay, addDays, fmtEur } from '../net'
 import { Journey, Leg, PlanResult, Point, plan, planArriveBy, tadBookable } from '../router'
@@ -42,6 +43,7 @@ export function PlaceInput({ net, label, value, placeholder, onPick, near, autoF
   const [q, setQ] = useState(value?.label ?? '')
   const [open, setOpen] = useState(false)
   const [sugg, setSugg] = useState<Suggestion[]>([])
+  const [active, setActive] = useState(-1)
   const input = useRef<HTMLInputElement>(null)
   const pois = usePois()
   useEffect(() => setQ(value?.label ?? ''), [value?.label])
@@ -59,36 +61,63 @@ export function PlaceInput({ net, label, value, placeholder, onPick, near, autoF
     }, 250)
     return () => { clearTimeout(t); ctrl.abort() }
   }, [q, open, pois])
+  const close = () => { setOpen(false); setActive(-1) }
   const pick = (s: Suggestion) => {
     onPick({ lat: s.lat!, lon: s.lon!, label: s.kind === 'address' ? `${s.label}, ${s.detail}` : s.kind === 'poi' ? poiLabel(s) : s.label })
-    setOpen(false)
+    close()
     input.current?.blur()
   }
+  // toutes les options de la liste, dans l'ordre affiché : la navigation au clavier les parcourt
+  const options: { key: string; select: () => void; body: ComponentChildren }[] = []
+  if (open) {
+    if (allowMyPos) options.push({ key: 'me', select: () => { onPick(null); setQ(''); close() }, body: <><Icon name="locate" size={16} /> Ma position</> })
+    for (const l of saved.filter(l => !q || q === value?.label || normalizeQ(`${l.name} ${l.label}`).includes(normalizeQ(q)))) {
+      options.push({ key: `s${l.id}`, select: () => { onPick(locationPoint(l)); close(); input.current?.blur() },
+        body: <><Icon name={LOCATION_META[l.kind].icon} size={16} /><span><strong>{l.name}</strong><small>{l.label}</small></span></> })
+    }
+    sugg.forEach((s, k) => options.push({ key: `g${k}`, select: () => pick(s), body: <>
+      {s.kind === 'poi'
+        ? <span class="poi-icon" style={{ color: s.color }}><Icon name="pin" size={16} /></span>
+        : <Icon name={s.kind === 'address' ? 'map' : s.kind === 'station' || s.rail ? 'train' : 'bus'} size={16} />}
+      <span><strong>{s.label}</strong><small>{s.kind === 'address' ? `Adresse · ${s.detail}` : s.detail}</small></span>
+    </> }))
+  }
+  // nouvelle liste (frappe, adresses arrivées) : plus d'option active
+  useEffect(() => setActive(-1), [q, sugg])
+  const listRef = useRef<HTMLUListElement>(null)
+  useEffect(() => { if (active >= 0) listRef.current?.children[active]?.scrollIntoView({ block: 'nearest' }) }, [active])
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (!open) { setOpen(true); return }
+      if (!options.length) return
+      const d = e.key === 'ArrowDown' ? 1 : -1
+      setActive(a => (a < 0 ? (d > 0 ? 0 : options.length - 1) : (a + d + options.length) % options.length))
+    } else if (e.key === 'Enter' && open && options.length) {
+      e.preventDefault()
+      options[active >= 0 ? active : 0].select()
+    } else if (e.key === 'Escape' && open) {
+      e.preventDefault()
+      close()
+    }
+  }
   const id = `in-${label}`
+  const listId = `${id}-list`
   return (
     <div class="place-input">
       <label for={id}>{label}</label>
       <input id={id} ref={input} value={q} placeholder={placeholder} autocomplete="off" role="combobox" aria-expanded={open}
-        onInput={e => { setQ((e.target as HTMLInputElement).value); setOpen(true) }}
-        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => { if (document.activeElement !== input.current) setOpen(false) }, 200)} />
+        aria-autocomplete="list" aria-controls={listId} aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
+        onInput={e => { setQ((e.target as HTMLInputElement).value); setOpen(true) }} onKeyDown={onKey}
+        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => { if (document.activeElement !== input.current) close() }, 200)} />
       {open && (
-        <ul class="suggest" role="listbox">
-          {allowMyPos && <li><button onMouseDown={e => e.preventDefault()} onClick={() => { onPick(null); setQ(''); setOpen(false) }}><Icon name="locate" size={16} /> Ma position</button></li>}
-          {saved.filter(l => !q || q === value?.label || normalizeQ(`${l.name} ${l.label}`).includes(normalizeQ(q))).map(l => (
-            <li key={l.id}><button onMouseDown={e => e.preventDefault()} onClick={() => { onPick(locationPoint(l)); setOpen(false); input.current?.blur() }}>
-              <Icon name={LOCATION_META[l.kind].icon} size={16} />
-              <span><strong>{l.name}</strong><small>{l.label}</small></span>
-            </button></li>
+        <ul class="suggest" role="listbox" id={listId} ref={listRef} aria-label={`Suggestions pour ${label.toLowerCase()}`}>
+          {options.map((o, k) => (
+            <li key={o.key} id={`${listId}-${k}`} role="option" aria-selected={k === active}>
+              <button tabIndex={-1} class={k === active ? 'active' : undefined} onMouseDown={e => e.preventDefault()} onMouseEnter={() => setActive(k)} onClick={o.select}>{o.body}</button>
+            </li>
           ))}
-          {sugg.map((s, k) => (
-            <li key={k}><button onMouseDown={e => e.preventDefault()} onClick={() => pick(s)}>
-              {s.kind === 'poi'
-                ? <span class="poi-icon" style={{ color: s.color }}><Icon name="pin" size={16} /></span>
-                : <Icon name={s.kind === 'address' ? 'map' : s.kind === 'station' ? 'train' : 'bus'} size={16} />}
-              <span><strong>{s.label}</strong><small>{s.kind === 'address' ? `Adresse · ${s.detail}` : s.detail}</small></span>
-            </button></li>
-          ))}
-          {q.length >= 3 && sugg.length === 0 && <li class="muted small pad">Aucun résultat</li>}
+          {q.length >= 3 && sugg.length === 0 && <li class="muted small pad" role="presentation">Aucun résultat</li>}
         </ul>
       )}
     </div>
@@ -189,7 +218,7 @@ export function TripView({ net, now, pos, state, setState, fares, saved = [], on
           <summary>Options <small>({[state.tad && net.routes.some(r => r.kind === 'tad') && 'TAD', state.train && 'trains', state.scolaire && net.routes.some(r => r.kind === 'scolaire') && 'scolaires'].filter(Boolean).join(', ') || 'aucune'})</small></summary>
         <div class="toggles">
           {net.routes.some(r => r.kind === 'tad') && <label class="toggle"><input type="checkbox" checked={state.tad} onChange={e => setState(s => ({ ...s, tad: (e.target as HTMLInputElement).checked }))} /> Transport à la demande</label>}
-          <label class="toggle"><input type="checkbox" checked={state.train} onChange={e => setState(s => ({ ...s, train: (e.target as HTMLInputElement).checked }))} /> Trains (TER)</label>
+          <label class="toggle"><input type="checkbox" checked={state.train} onChange={e => setState(s => ({ ...s, train: (e.target as HTMLInputElement).checked }))} /> Trains</label>
           {net.routes.some(r => r.kind === 'scolaire') && <label class="toggle"><input type="checkbox" checked={state.scolaire} onChange={e => setState(s => ({ ...s, scolaire: (e.target as HTMLInputElement).checked }))} /> Lignes scolaires <small>(à confirmer)</small></label>}
         </div>
         </details>
@@ -278,8 +307,10 @@ export function fareEstimate(net: Network, fares: Fares | null, j: Journey): { t
   const kindOf = (r: Extract<Leg, { type: 'ride' }>) => net.routes[r.trip.route].kind
   const local = rides.filter(r => kindOf(r) !== 'region' && kindOf(r) !== 'train')
   const region = rides.some(r => kindOf(r) === 'region')
-  const train = rides.some(r => kindOf(r) === 'train')
-  const extras = [region && 'car Région (tarif Région)', train && 'billet TER (tarif SNCF)'].filter(Boolean).join(' + ')
+  // trains SNCF (pastille « TER ») et trains suisses (CFF : IR90, RE33…) : billets distincts
+  const ter = rides.some(r => kindOf(r) === 'train' && net.routes[r.trip.route].short === 'TER')
+  const cff = rides.some(r => kindOf(r) === 'train' && net.routes[r.trip.route].short !== 'TER')
+  const extras = [region && 'car Région (tarif Région)', ter && 'billet TER (tarif SNCF)', cff && 'billet CFF (tarif suisse)'].filter(Boolean).join(' + ')
   if (!local.length) return extras ? { text: extras.charAt(0).toUpperCase() + extras.slice(1), region: true } : null
   const tad = local.some(r => r.booking)
   const fare = fares.fares.find(f => f.name === (tad ? 'Ticket TAD' : 'Ticket unitaire'))
@@ -365,7 +396,7 @@ function ArrivalTrains({ net, now, journey, date }: { net: Network; now: Now; jo
         <small>départs après votre arrivée, marche et 5 min de marge comprises</small></span></div>
       {trains.length === 0 ? <p class="muted small">Aucun train dans les 24 h suivant votre arrivée.</p>
         : <ul class="train-list">{trains.map(t => <TrainRowView key={`${t.number}${t.abs}`} t={t} now={now} kind="dep" uic={uic} />)}</ul>}
-      <RtNote rt={rt} fallback="Horaires théoriques SNCF, sans garantie de correspondance : vérifiez sur SNCF Connect." />
+      <RtNote rt={rt} fallback="Horaires théoriques des trains, sans garantie de correspondance : vérifiez sur SNCF Connect ou l’application CFF." />
     </section>
   )
 }
