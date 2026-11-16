@@ -57,7 +57,7 @@ Autres commandes : `npm run test:router` (tests du calculateur sur les vraies do
 | Lieux utiles | Mairies, services, écoles, santé, culture et sport, commerces, déchetteries, aéroport : pastille à pictogramme par catégorie, **légende-filtre** (puce « Lieux ▾ »), fiche avec horaires, accessibilité, « Y aller », appel, site. Proposés dans la recherche (« mairie ornex », « piscine », « déchetterie ») | OpenStreetMap (ODbL) |
 | Recherche | Arrêts, gares, lieux et adresses ; **navigation au clavier** (flèches, Entrée, Échap) | GTFS, OSM, BAN |
 | Trains suisses (Pays de Gex) | Trains CFF dans les itinéraires (RE33, IR90, IC1…, pastille rouge), Cornavin réunissant bus, SNCF et CFF : Ornex → Lausanne par la 60 puis le RE33 | opentransportdata.swiss |
-| Encart pour un site de commune | Page `widget.html` (publique) : prochains départs aux arrêts de la commune, hauteur ajustée automatiquement, message clair après expiration des données | GTFS + pipeline |
+| Encarts pour un site de commune | Page `widget.html` (publique), trois formats : **complet** (page Transports), **compact** (accueil), **« Comment venir »** à un lieu (arrêts proches, marche, départs, itinéraire prérempli) ; couleur de la commune ; hauteur ajustée automatiquement ; message clair après expiration. Démonstration : `demo-encarts.html` | GTFS + OSM + pipeline |
 
 ## Architecture (volontairement minimale)
 

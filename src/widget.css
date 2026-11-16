@@ -1,5 +1,5 @@
 /* Encart « prochains départs » : sobre, lisible, s'intègre sur un site de commune. */
-:root { color-scheme: light; --text: #16201f; --muted: #5d6866; --line: #e2ded6; --bg: #ffffff; --link: #0f3d3e; }
+:root { color-scheme: light; --text: #16201f; --muted: #5d6866; --line: #e2ded6; --bg: #ffffff; --accent: #0f3d3e; --link: var(--accent); }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); }
 body { font: 16px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: var(--text); }
@@ -17,6 +17,25 @@ body { font: 16px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'He
 .w-when b { color: #b5400b; }
 .w-foot { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; }
 .w-link { color: var(--link); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; display: inline-block; padding: 6px 0; }
-.w-link:focus-visible { outline: 3px solid #0f3d3e; outline-offset: 2px; }
+.w-link:focus-visible, .w-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (max-width: 420px) { .w { padding: 12px; } .w-row { gap: 8px; } }
+
+/* bandeau compact (accueil, colonne latérale) */
+:root[data-format="compact"] .w { padding: 10px 12px; }
+.w-ctop { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.w-ctop h2 { font-size: 16px; margin: 0; }
+.w-small { font-size: 14px; padding: 2px 0; }
+.w-clist { list-style: none; margin: 0; padding: 0; }
+.w-crow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.w-cstop { font-weight: 700; min-width: 88px; }
+.w-chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.w-chip .w-pill { font-size: 13px; min-width: 28px; padding: 1px 6px; }
+.w-dir { color: var(--muted); max-width: 11em; overflow: hidden; text-overflow: ellipsis; }
+
+/* « Comment venir » */
+.w-walk { font-weight: 400; color: var(--muted); font-size: 14px; }
+.w-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border-radius: 8px;
+  background: var(--accent); color: var(--accent-ink, #fff); font-weight: 700; text-decoration: none; align-self: flex-start; }
+.w-btn:hover { filter: brightness(1.1); }
+.w-credit { font-size: 12.5px; }

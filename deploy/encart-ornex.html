@@ -1,18 +1,40 @@
-<!-- Encart « Prochains départs à Ornex » : à coller dans un bloc « HTML personnalisé » de WordPress
-     (page Transports publics d'ornex.fr). L'iframe s'ajuste toute seule à la hauteur du contenu. -->
-<div class="maillage-encart">
-  <iframe
-    src="https://maillage.tuatam.fr/widget.html?reseau=paysdegex&amp;commune=ornex"
-    title="Prochains départs des bus aux arrêts d'Ornex"
-    loading="lazy"
-    style="width:100%;max-width:720px;height:560px;border:1px solid #e2ded6;display:block"
-    data-maillage="ornex"></iframe>
-</div>
+<!-- Encarts Maillage pour ornex.fr : à coller dans un bloc « HTML personnalisé » de WordPress.
+     Trois formats, à placer chacun sur la page qui convient ; chaque iframe s'ajuste toute seule à son contenu.
+     Le script en bas de ce fichier est à coller UNE fois par page (il sert à tous les encarts de la page).
+     Paramètres : format (complet | compact | venir), lieu (format venir), couleur (hexadécimal sans #),
+     id (identifiant unique de l'encart sur la page, repris dans data-maillage). -->
+
+<!-- 1. Encart complet : page « Transports publics » -->
+<iframe
+  src="https://maillage.tuatam.fr/widget.html?reseau=paysdegex&amp;commune=ornex&amp;id=ornex"
+  title="Prochains départs des bus aux arrêts d'Ornex"
+  loading="lazy"
+  style="width:100%;max-width:720px;height:560px;border:1px solid #e2ded6;display:block"
+  data-maillage="ornex"></iframe>
+
+<!-- 2. Bandeau compact : page d'accueil ou colonne latérale -->
+<iframe
+  src="https://maillage.tuatam.fr/widget.html?reseau=paysdegex&amp;commune=ornex&amp;format=compact&amp;id=ornex-compact"
+  title="Prochains bus à Ornex"
+  loading="lazy"
+  style="width:100%;max-width:720px;height:150px;border:1px solid #e2ded6;display:block"
+  data-maillage="ornex-compact"></iframe>
+
+<!-- 3. « Comment venir » : page d'un équipement (ici la mairie). lieu = nom du lieu tel qu'il apparaît
+     dans les données OpenStreetMap de la commune (Mairie d'Ornex, Collège Simone Veil, École des Bois,
+     Salle René Lavergne, Déchèterie d'Ornex, Ressourcerie du Pays de Gex, Pharmacie des Arcades…) -->
+<iframe
+  src="https://maillage.tuatam.fr/widget.html?reseau=paysdegex&amp;commune=ornex&amp;format=venir&amp;lieu=Mairie%20d'Ornex&amp;id=ornex-mairie"
+  title="Venir en bus à la mairie d'Ornex"
+  loading="lazy"
+  style="width:100%;max-width:520px;height:420px;border:1px solid #e2ded6;display:block"
+  data-maillage="ornex-mairie"></iframe>
+
+<!-- Script commun (une fois par page) : ajuste la hauteur de chaque encart à son contenu. -->
 <script>
-  // Ajuste la hauteur de l'encart à son contenu (message envoyé par la page de l'encart).
   window.addEventListener('message', function (e) {
     if (e.origin !== 'https://maillage.tuatam.fr' || !e.data || e.data.type !== 'maillage-widget-height') return;
-    var f = document.querySelector('iframe[data-maillage="' + e.data.commune + '"]');
-    if (f && e.data.height > 100 && e.data.height < 3000) f.style.height = e.data.height + 'px';
+    var f = document.querySelector('iframe[data-maillage="' + String(e.data.commune).replace(/[^a-z0-9-]/gi, '') + '"]');
+    if (f && e.data.height > 40 && e.data.height < 3000) f.style.height = e.data.height + 'px';
   });
 </script>

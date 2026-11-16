@@ -164,6 +164,15 @@ function Shell({ net }: { net: Network }) {
     setTab('trip')
     if (snap === 'peek') setSnap('half')
   }
+  // arrivée depuis l'encart « Comment venir » : ?vers=lat,lon,nom → itinéraire déjà rempli jusqu'au lieu
+  useEffect(() => {
+    const v = new URLSearchParams(location.search).get('vers')
+    const m = v?.match(/^(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+),(.{1,120})$/)
+    if (!m) return
+    const [lat, lon] = [Number(m[1]), Number(m[2])]
+    if (distance(lat, lon, net.tenant.center[1], net.tenant.center[0]) > 60000) return // hors territoire : ignoré
+    goLocation({ lat, lon, name: m[3] })
+  }, [])
   const manageLocations = () => { setStack([]); setTab('me') }
   const goFrom = (i: number) => {
     const p = net.places[i]

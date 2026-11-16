@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Encarts Maillage · démonstration</title>
+  <style>
+    /* Page de démonstration (réunion avec une commune) : trois emplacements types d'un site municipal.
+       Volontairement neutre : ce n'est pas une copie d'un site réel. Servie derrière le mot de passe. */
+    :root { --ink: #1f2933; --muted: #5f6b76; --line: #e3e0d8; --bg: #f6f4ef; --brand: #1f5c4d; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+    header.site { background: var(--brand); color: #fff; padding: 14px 20px; display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+    header.site strong { font-size: 20px; }
+    header.site span { opacity: .8; font-size: 14px; }
+    nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; padding: 10px 20px 0; max-width: 1100px; margin: 0 auto; }
+    nav.tabs button { font: inherit; border: 1px solid var(--line); border-bottom: 0; background: #fff; padding: 8px 14px; border-radius: 8px 8px 0 0; cursor: pointer; color: var(--muted); }
+    nav.tabs button[aria-selected="true"] { color: var(--ink); font-weight: 700; background: #fff; box-shadow: inset 0 3px 0 var(--brand); }
+    main { max-width: 1100px; margin: 0 auto; background: #fff; border: 1px solid var(--line); padding: 24px 20px 40px; }
+    .cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: start; }
+    @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+    h1 { font-size: 26px; margin: 0 0 8px; }
+    .note { background: #fff8e6; border: 1px solid #f0dca8; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #5b4a17; margin: 0 0 20px; }
+    .placeholder { background: repeating-linear-gradient(135deg, #f1efe9 0 12px, #ece9e1 12px 24px); border-radius: 8px; height: 140px; margin: 12px 0; }
+    .label { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 6px; }
+    iframe { width: 100%; border: 1px solid var(--line); display: block; border-radius: 6px; background: #fff; }
+    [hidden] { display: none !important; }
+    .swatches { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+    .swatches button { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header class="site"><strong>Votre commune</strong><span>Exemple d'intégration des encarts Maillage dans un site municipal</span></header>
+  <nav class="tabs" role="tablist" aria-label="Pages d'exemple">
+    <button role="tab" aria-selected="true" data-page="accueil">Accueil · bandeau compact</button>
+    <button role="tab" aria-selected="false" data-page="transports">Transports publics · encart complet</button>
+    <button role="tab" aria-selected="false" data-page="mairie">La mairie · « Comment venir »</button>
+  </nav>
+  <main>
+    <p class="note">Démonstration : les horaires sont réels (données ouvertes du Pays de Gex), le décor de la page est fictif.
+      Chaque encart s'ajuste tout seul à la hauteur de son contenu et se colle dans un bloc « HTML personnalisé ».</p>
+
+    <section data-page="accueil">
+      <div class="cols">
+        <div>
+          <h1>Bienvenue à Ornex</h1>
+          <div class="placeholder" aria-hidden="true"></div>
+          <p>Actualités, agenda, démarches… Le bandeau des prochains bus est vu par tous les visiteurs de l'accueil.</p>
+          <div class="placeholder" aria-hidden="true"></div>
+        </div>
+        <aside>
+          <p class="label">Colonne latérale</p>
+          <iframe data-maillage="demo-compact" title="Prochains bus à Ornex" style="height:170px"
+            data-src="./widget.html?reseau=paysdegex&commune=ornex&format=compact&id=demo-compact"></iframe>
+        </aside>
+      </div>
+    </section>
+
+    <section data-page="transports" hidden>
+      <h1>Transports publics</h1>
+      <p>Lignes 60 et 61 (TPG, pour Pays de Gex Agglo). Prochains départs en direct aux trois arrêts de la commune :</p>
+      <iframe data-maillage="demo-complet" title="Prochains départs des bus aux arrêts d'Ornex" style="height:560px;max-width:720px"
+        data-src="./widget.html?reseau=paysdegex&commune=ornex&id=demo-complet"></iframe>
+    </section>
+
+    <section data-page="mairie" hidden>
+      <div class="cols">
+        <div>
+          <h1>La mairie</h1>
+          <p>Horaires d'ouverture, services, contacts…</p>
+          <div class="placeholder" aria-hidden="true"></div>
+          <div class="swatches">Couleur de la commune :
+            <button style="background:#0f3d3e" data-couleur="" aria-label="Couleur par défaut"></button>
+            <button style="background:#1d4ed8" data-couleur="1d4ed8" aria-label="Bleu"></button>
+            <button style="background:#b91c1c" data-couleur="b91c1c" aria-label="Rouge"></button>
+            <button style="background:#f2c94c" data-couleur="f2c94c" aria-label="Jaune"></button>
+          </div>
+        </div>
+        <aside>
+          <p class="label">Comment venir</p>
+          <iframe data-maillage="demo-venir" title="Venir en bus à la mairie d'Ornex" style="height:420px"
+            data-src="./widget.html?reseau=paysdegex&commune=ornex&format=venir&lieu=Mairie%20d'Ornex&id=demo-venir"></iframe>
+        </aside>
+      </div>
+    </section>
+  </main>
+  <script>
+    // onglets : l'iframe d'un onglet n'est chargée qu'à son affichage
+    const show = page => {
+      document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.page === page)))
+      document.querySelectorAll('main section[data-page]').forEach(s => {
+        s.hidden = s.dataset.page !== page
+        if (!s.hidden) s.querySelectorAll('iframe[data-src]').forEach(f => { if (!f.src) f.src = f.dataset.src })
+      })
+    }
+    document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => show(b.dataset.page)))
+    show('accueil')
+    // couleur de la commune (encart « Comment venir »)
+    document.querySelectorAll('[data-couleur]').forEach(b => b.addEventListener('click', () => {
+      const f = document.querySelector('iframe[data-maillage="demo-venir"]')
+      const u = new URL(f.dataset.src, location.href)
+      if (b.dataset.couleur) u.searchParams.set('couleur', b.dataset.couleur); else u.searchParams.delete('couleur')
+      f.src = u.toString()
+    }))
+    // hauteur automatique (même script que sur le site d'une commune)
+    window.addEventListener('message', e => {
+      if (e.origin !== location.origin || !e.data || e.data.type !== 'maillage-widget-height') return
+      const f = document.querySelector('iframe[data-maillage="' + String(e.data.commune).replace(/[^a-z0-9-]/gi, '') + '"]')
+      if (f && e.data.height > 40 && e.data.height < 3000) f.style.height = e.data.height + 'px'
+    })
+  </script>
+</body>
+</html>

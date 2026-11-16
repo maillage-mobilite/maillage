@@ -2,7 +2,7 @@
 """Résumé de la mesure d'usage (journal usage.log écrit par nginx, sans IP ni cookie).
 
 Lit le journal sur l'entrée standard (voir stats.sh) :
-  <date ISO> <encart|appli> <compte|-> <site d'origine|-> <reseau>- <commune>- <src>- <appareil>
+  <date ISO> <encart|appli> <compte|-> <site d'origine|-> <reseau>- <commune>- <src>- <appareil> [<format>-]
 Compte des affichages et des ouvertures, pas des personnes : sans IP ni cookie, on ne distingue
 pas un habitant qui revient de deux habitants différents.
 
@@ -28,7 +28,7 @@ def main():
     rows = []
     for line in sys.stdin:
         p = line.split()
-        if len(p) != 8:
+        if len(p) not in (8, 9):  # 9e champ (format de l'encart) depuis le 16/11/2026
             continue
         day = dt.datetime.fromisoformat(p[0]).astimezone(PARIS).date()
         if day < since:
@@ -36,11 +36,12 @@ def main():
         strip = lambda v: v[:-1] if v.endswith("-") else v
         rows.append({"day": day, "evt": p[1], "user": None if p[2] == "-" else p[2],
                      "ref": None if p[3] == "-" else p[3].removeprefix("www."),
-                     "reseau": strip(p[4]), "commune": strip(p[5]), "src": strip(p[6]), "device": p[7]})
+                     "reseau": strip(p[4]), "commune": strip(p[5]), "src": strip(p[6]), "device": p[7],
+                     "format": (strip(p[8]) if len(p) == 9 else "") or "complet"})
 
     enc = [r for r in rows if r["evt"] == "encart"]
     app = [r for r in rows if r["evt"] == "appli"]
-    clicks = [r for r in app if r["src"] == "encart"]
+    clicks = [r for r in app if r["src"].startswith("encart")]
     print(f"Mesure d'usage Maillage — du {since:%d/%m/%Y} au {today:%d/%m/%Y} ({args.days} jours)")
     print("(affichages et ouvertures, pas des personnes : ni IP ni cookie)\n")
 
@@ -48,11 +49,15 @@ def main():
     by_site = collections.Counter((r["commune"] or "?", r["ref"] or "lien direct") for r in enc)
     for (commune, ref), n in by_site.most_common():
         print(f"  {commune:<12} sur {ref:<28} {n:>6}")
+    fmt = collections.Counter(r["format"] for r in enc)
+    if fmt:
+        print("  formats : " + ", ".join(f"{k} {v}" for k, v in fmt.most_common()))
     dev = collections.Counter(r["device"] for r in enc)
     if dev:
         print("  appareils : " + ", ".join(f"{k} {v * 100 // len(enc)} %" for k, v in dev.most_common()))
-    print(f"  clics « Calculer un itinéraire » : {len(clicks)}"
-          + (f" ({len(clicks) * 100 / len(enc):.1f} % des affichages)" if enc else ""))
+    print(f"  clics vers l'itinéraire : {len(clicks)}"
+          + (f" (dont « Comment venir » : {sum(1 for r in clicks if r['src'] == 'encart-venir')})" if clicks else "")
+          + (f", soit {len(clicks) * 100 / len(enc):.1f} % des affichages" if enc else ""))
 
     print(f"\nApplication (comptes privés) : {len(app)} ouverture(s)")
     users = collections.defaultdict(list)

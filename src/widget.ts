@@ -2,17 +2,39 @@
 // Page autonome et légère : ni carte ni calcul d'itinéraire, seulement les passages aux arrêts
 // de la commune (data/<territoire>/widget-<commune>.json, produit par pipeline/build_widget.py).
 //
-// Paramètres d'adresse : ?reseau=paysdegex&commune=ornex[&lien=<adresse du calculateur>]
+// Paramètres d'adresse : ?reseau=paysdegex&commune=ornex
+//   &format=complet (défaut) | compact (bandeau d'accueil) | venir (« Comment venir » à un lieu, avec &lieu=<nom>)
+//   &couleur=<hexadécimal sans #> (couleur de la commune) · &id=<identifiant de l'iframe> (plusieurs encarts par page)
+//   &lien=<adresse https du calculateur>
 import './widget.css'
 
 interface WRoute { short: string; long: string; color: string; text: string; kind: string }
 interface WStop { name: string; lat: number; lon: number; deps: [number, number, number, string][] }
-interface WData { name: string; generated_at: string; window_start: string; window_days: number; valid_until?: string | null; operator_url?: string | null; routes: WRoute[]; services: string[]; stops: WStop[] }
+interface WData {
+  name: string; generated_at: string; window_start: string; window_days: number; valid_until?: string | null; operator_url?: string | null
+  routes: WRoute[]; services: string[]; stops: WStop[]
+  /** lieux de la commune (OpenStreetMap) : [nom, catégorie, type, lat, lon] */
+  lieux?: [string, string, string, number, number][]
+}
 
 const params = new URLSearchParams(location.search)
 const slug = (v: string | null, d: string) => (v && /^[a-z0-9-]+$/.test(v) ? v : d)
 const reseau = slug(params.get('reseau'), 'paysdegex')
 const commune = slug(params.get('commune'), 'ornex')
+const format = (['complet', 'compact', 'venir'] as const).find(f => f === params.get('format')) ?? 'complet'
+const lieuParam = (params.get('lieu') ?? '').slice(0, 120)
+const frameId = (params.get('id') ?? commune).replace(/[^a-z0-9-]/gi, '').slice(0, 40) || commune
+// couleur de la commune : liens, temps d'attente, bouton (hexadécimal seul : rien d'autre n'entre dans la feuille de style)
+const couleur = /^[0-9a-f]{6}$/i.test(params.get('couleur') ?? '') ? `#${params.get('couleur')}` : null
+if (couleur) {
+  document.documentElement.style.setProperty('--accent', couleur)
+  // texte du bouton : blanc ou noir selon la clarté de la couleur (contraste lisible)
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(couleur.slice(i, i + 2), 16) / 255).map(c => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+  document.documentElement.style.setProperty('--accent-ink', 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.18 ? '#111' : '#fff')
+}
+document.documentElement.dataset.format = format
+// lien fourni par la commune (page publique) : remplace aussi le bouton « Itinéraire jusqu'ici » (sans préremplissage)
+const lienFourni = /^https:\/\//.test(params.get('lien') ?? '')
 const lien = (() => {
   const v = params.get('lien')
   try { if (v && /^https:\/\//.test(v)) return new URL(v).toString() } catch { /* adresse invalide */ }
@@ -53,6 +75,79 @@ function when(wait: number, at: number) {
   return at >= 86400 ? `demain ${hm(at)}` : hm(at)
 }
 
+const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+const metres = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) =>
+  Math.hypot((a.lat - b.lat) * 111_000, (a.lon - b.lon) * 111_000 * Math.cos(a.lat * Math.PI / 180))
+const shortName = (data: WData, stop: WStop) => stop.name.replace(new RegExp(`^${data.name},\\s*`, 'i'), '')
+const pill = (r: WRoute) => `<span class="w-pill" style="background:${esc(r.color)};color:${esc(r.text)}" aria-label="Ligne ${esc(r.short)}">${esc(r.short)}</span>`
+
+/** Départs d'un arrêt regroupés par ligne et direction (au plus 2 par groupe dans les 3 h), les plus proches d'abord. */
+function groupsOf(data: WData, stop: WStop, now: { date: string; sec: number }) {
+  const groups = new Map<string, { route: number; head: string; next: { wait: number; at: number }[] }>()
+  for (const d of upcoming(data, stop, now)) {
+    const key = `${d.route}|${d.head}`
+    const g = groups.get(key) ?? { route: d.route, head: d.head, next: [] }
+    if (!g.next.length || (g.next.length < 2 && d.wait < HORIZON)) g.next.push(d)
+    groups.set(key, g)
+  }
+  return [...groups.values()].sort((a, b) => a.next[0].wait - b.next[0].wait)
+}
+
+function rowsHtml(data: WData, groups: ReturnType<typeof groupsOf>, max = 99) {
+  return groups.slice(0, max).map(g => `<li class="w-row">
+        ${pill(data.routes[g.route])}
+        <span class="w-head"><span class="sr">vers </span>${esc(g.head)}</span>
+        <span class="w-when">${g.next.map(n => when(n.wait, n.at)).join('<span class="w-sep" aria-hidden="true"> · </span><span class="sr">, puis </span>')}</span>
+      </li>`).join('')
+}
+
+const credit = '<p class="w-muted w-credit">Horaires théoriques, sans retards en temps réel. Données : Pays de Gex Agglo (Licence Ouverte).</p>'
+const linkHtml = (href: string, label: string, cls = 'w-link') =>
+  `<a class="${cls}" href="${esc(href)}" target="_blank" rel="noopener">${label}<span class="sr"> (nouvel onglet)</span> ↗</a>`
+
+/** Bandeau compact (page d'accueil, colonne) : une ligne par arrêt, prochain départ de chaque direction. */
+function renderCompact(data: WData, now: { date: string; sec: number }) {
+  const rows = data.stops.map(stop => {
+    // un départ par direction (la ligne la plus tôt), pour tenir en une ligne par arrêt
+    const seen = new Set<string>()
+    const items = groupsOf(data, stop, now).filter(g => (seen.has(g.head) ? false : (seen.add(g.head), true))).slice(0, 2).map(g => {
+      const r = data.routes[g.route]
+      return `<span class="w-chip">${pill(r)}<span class="sr">vers </span><span class="w-dir">${esc(g.head.replace(/^Genève, gare Cornavin$/, 'Genève Cornavin'))}</span> ${when(g.next[0].wait, g.next[0].at)}</span>`
+    })
+    return `<li class="w-crow"><span class="w-cstop">${esc(shortName(data, stop))}</span>${items.length ? items.join('') : '<span class="w-muted">pas de départ avant demain</span>'}</li>`
+  }).join('')
+  root.innerHTML = `
+    <div class="w-ctop"><h2>Prochains bus à ${esc(data.name)}</h2>${linkHtml(lien, 'Itinéraire', 'w-link w-small')}</div>
+    <ul class="w-clist">${rows}</ul>`
+}
+
+/** « Comment venir » à un lieu de la commune : arrêts les plus proches, marche, départs, itinéraire prérempli. */
+function renderVenir(data: WData, now: { date: string; sec: number }) {
+  const q = norm(lieuParam)
+  const l = q ? (data.lieux ?? []).find(x => norm(x[0]) === q) ?? (data.lieux ?? []).find(x => norm(x[0]).includes(q)) : undefined
+  if (!l) {
+    root.innerHTML = `<p class="w-muted">Lieu introuvable${lieuParam ? ` : « ${esc(lieuParam)} »` : ''}. ${linkHtml(lien, 'Calculer un itinéraire')}</p>`
+    return
+  }
+  const [nom, , type, lat, lon] = l
+  const near = data.stops.map(s => ({ s, m: metres({ lat, lon }, s) })).sort((a, b) => a.m - b.m).slice(0, 2)
+    .filter((x, k) => k === 0 || x.m < 900)
+  const walk = (m: number) => Math.max(1, Math.round(m * 1.3 / 75)) // détour des rues ≈ × 1,3 ; 4,5 km/h
+  const vers = lienFourni ? lien
+    : new URL(`./?reseau=${reseau}&src=encart-venir&vers=${lat.toFixed(5)},${lon.toFixed(5)},${encodeURIComponent(nom)}`, location.href).toString()
+  const blocks = near.map(({ s, m }) => `<section class="w-stop" aria-label="Arrêt ${esc(s.name)}">
+      <h3>${esc(shortName(data, s))} <span class="w-walk">· ${walk(m)} min à pied</span></h3>
+      <ul>${rowsHtml(data, groupsOf(data, s, now), 4) || '<li class="w-muted">Aucun départ dans les prochaines 24 h.</li>'}</ul>
+    </section>`).join('')
+  root.innerHTML = `
+    <header class="w-top"><h2>Venir en bus · ${esc(nom)}</h2><p class="w-muted">${esc(type)}</p></header>
+    ${blocks}
+    <footer class="w-foot">
+      ${linkHtml(vers, 'Itinéraire jusqu’ici', 'w-btn')}
+      ${credit}
+    </footer>`
+}
+
 function render(data: WData) {
   const now = parisNow()
   // données expirées (flux GTFS échu ou fenêtre précalculée dépassée) : on ne fait pas croire qu'il n'y a pas de bus
@@ -61,6 +156,12 @@ function render(data: WData) {
       <header class="w-top"><h2>Prochains départs à ${esc(data.name)}</h2></header>
       <p class="w-muted">Les horaires sont en cours de mise à jour.${data.operator_url ? ' En attendant, consultez le site du transporteur.' : ''}</p>
       ${data.operator_url && /^https:\/\//.test(data.operator_url) ? `<footer class="w-foot"><a class="w-link" href="${esc(data.operator_url)}" target="_blank" rel="noopener">Site du transporteur<span class="sr"> (nouvel onglet)</span> ↗</a></footer>` : ''}`
+    root.removeAttribute('aria-busy')
+    return
+  }
+  if (format !== 'complet') {
+    if (format === 'compact') renderCompact(data, now)
+    else renderVenir(data, now)
     root.removeAttribute('aria-busy')
     return
   }
@@ -106,7 +207,7 @@ new ResizeObserver(() => {
   const height = Math.ceil(root.getBoundingClientRect().height)
   if (height > 0 && height !== lastHeight && window.parent !== window) {
     lastHeight = height
-    window.parent.postMessage({ type: 'maillage-widget-height', commune, height }, '*')
+    window.parent.postMessage({ type: 'maillage-widget-height', commune: frameId, height }, '*')
   }
 }).observe(root)
 

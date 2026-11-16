@@ -75,12 +75,17 @@ def main():
         "services": services,
         "stops": [{"name": wanted[pl], "lat": places[pl][1], "lon": places[pl][2], "deps": out_stops[pl]} for pl in wanted],
     }
+    # lieux de la commune (pois.json, OpenStreetMap) : format « Comment venir » de l'encart
+    pois_path = os.path.join(args.datadir, "pois.json")
+    if os.path.exists(pois_path):
+        pois = json.load(open(pois_path, encoding="utf-8"))
+        data["lieux"] = [[p[0], p[1], p[2], p[4], p[5]] for p in pois["pois"] if p[3] == args.name]
     path = os.path.join(args.datadir, f"widget-{args.slug}.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, separators=(",", ":"))
     n = sum(len(v) for v in out_stops.values())
     print(f"[widget] {args.name} : {len(wanted)} arrêts, {len(routes)} lignes, {n} passages, "
-          f"{len(services)} calendriers → {path} ({os.path.getsize(path) // 1024} Ko)")
+          f"{len(services)} calendriers, {len(data.get('lieux', []))} lieux → {path} ({os.path.getsize(path) // 1024} Ko)")
 
 
 if __name__ == "__main__":
