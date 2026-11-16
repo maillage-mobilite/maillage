@@ -307,7 +307,7 @@ function planWalk(net: Network, origin: Point, dest: Point, date: string, t0: nu
     if (d === date) notes.push("Aucun trajet en transport en commun ne part encore aujourd'hui : options du lendemain.")
   }
   // on ne signale le délai TAD que s'il prive l'usager d'une option le jour demandé
-  if (opt.includeTad && !tadBookable(net, date, opt.now) && (journeys.length === 0 || journeys[0].dep >= 86400)) notes.push("Le transport à la demande n'est plus réservable pour ce jour (réservation la veille avant 15 h).")
+  if (opt.includeTad && net.routes.some(r => r.kind === 'tad') && !tadBookable(net, date, opt.now) && (journeys.length === 0 || journeys[0].dep >= 86400)) notes.push("Le transport à la demande n'est plus réservable pour ce jour (réservation la veille avant 15 h).")
   // on retire les options dominées (arrive plus tard ou en même temps, part plus tôt, autant de correspondances)
   // Une correspondance évitée « vaut » 20 min de départ plus tôt : on écarte une option qui ne part
   // que quelques minutes plus tard au prix de correspondances supplémentaires.

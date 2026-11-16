@@ -1,13 +1,15 @@
-// Recherche : arrêts et lignes en local, adresses via la Base Adresse Nationale (BAN).
-import { Network, distance, distinctRoutes, stationLabel } from './net'
+// Recherche : arrêts, lignes et lieux utiles (OpenStreetMap) en local, adresses via la Base Adresse Nationale (BAN).
+import { Network, Pois, distance, distinctRoutes, stationLabel } from './net'
 
 export interface Suggestion {
-  kind: 'place' | 'route' | 'address' | 'station'
+  kind: 'place' | 'route' | 'address' | 'station' | 'poi'
   label: string
   detail: string
   lat?: number
   lon?: number
   id?: number
+  /** Couleur de la catégorie (lieux). */
+  color?: string
 }
 
 export const normalize = (s: string) =>
@@ -40,6 +42,27 @@ export function searchLocal(net: Network, q: string, near?: { lat: number; lon: 
     if (words.every(w => n.includes(w))) out.push({ kind: 'route', label: r.kind === 'train' ? `TER ${r.long}` : `Ligne ${r.short}`, detail: r.kind === 'train' ? 'Train régional SNCF' : r.long, id: r.i, score: normalize(r.short) === nq ? -1 : 0.5 })
   }
   return out.sort((a, b) => a.score - b.score).slice(0, 6)
+}
+
+/** Lieux utiles (mairie, école, piscine…) : nom, type et commune ; les plus proches d'abord. */
+export function searchPois(pois: Pois | null, q: string, near?: { lat: number; lon: number }): Suggestion[] {
+  // « déchetterie » et « déchèterie » sont les deux orthographes admises
+  const canon = (s: string) => normalize(s).replace(/dechett/g, 'dechet')
+  const nq = canon(q)
+  if (!pois || nq.length < 2) return []
+  const STOP = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'd', 'l', 'a', 'au'])
+  const all = nq.split(' ')
+  const words = all.some(w => !STOP.has(w)) ? all.filter(w => !STOP.has(w)) : all
+  const color = new Map(pois.categories.map(c => [c.id, c.color]))
+  const out: (Suggestion & { score: number })[] = []
+  for (const p of pois.pois) {
+    const n = canon(p.name)
+    if (!words.every(w => canon(`${p.name} ${p.type} ${p.commune}`).includes(w))) continue
+    const d = near ? distance(near.lat, near.lon, p.lat, p.lon) : 0
+    const score = (n.startsWith(nq) ? 0 : words.every(w => n.includes(w)) ? 0.5 : 1) + d / 10000
+    out.push({ kind: 'poi', label: p.name, detail: `${p.type} · ${p.commune}`, lat: p.lat, lon: p.lon, id: p.i, color: color.get(p.cat), score })
+  }
+  return out.sort((a, b) => a.score - b.score).slice(0, 4)
 }
 
 const ADDRESS_RADIUS_M = 60_000

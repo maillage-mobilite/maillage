@@ -4,7 +4,7 @@ import { Map as MLMap, LngLatBounds, type GeoJSONSource, type LngLatBoundsLike, 
 import type * as GeoJSON from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { distinctRoutes, stationLabel, type Kind, type Network } from './net'
+import { distinctRoutes, hoursLabel, stationLabel, type Kind, type Network, type Poi, type Pois } from './net'
 import type { Journey } from './router'
 import { Icon, Pill } from './ui'
 import { loadShapes, rideGeometry } from './geometry'
@@ -25,12 +25,16 @@ export interface MapProps {
   onReady?: () => void
   /** Fond de carte : plan (OSM vectoriel), satellite (IGN) ou vélo (CyclOSM). */
   basemap: Basemap
-  /** Types de lignes visibles sur la carte, et 'gares' pour les gares SNCF. */
-  kinds: (Kind | 'gares')[]
+  /** Types de lignes visibles sur la carte, 'gares' pour les gares SNCF, 'lieux' pour les lieux utiles. */
+  kinds: (Kind | 'gares' | 'lieux')[]
+  /** Lieux utiles (OpenStreetMap), affichés quand 'lieux' est dans kinds. */
+  pois: Pois | null
+  /** « Y aller » depuis la fiche d'un lieu. */
+  onPoi: (p: Poi) => void
 }
 
 interface HoverItem { route: number; from: string; to: string; both?: boolean }
-interface Hover { x: number; y: number; items: HoverItem[]; pinned: boolean; station?: number }
+interface Hover { x: number; y: number; items: HoverItem[]; pinned: boolean; station?: number; poi?: number }
 
 /** Lignes sous le pointeur (tolérance de quelques pixels : les tracés sont fins). */
 function linesAt(m: MLMap, x: number, y: number, tol = 7): HoverItem[] {
@@ -153,6 +157,7 @@ export function MapView(props: MapProps) {
       for (const [id, b] of Object.entries(RASTER_BASEMAPS)) {
         m.addSource(`basemap-${id}`, { type: 'raster', tiles: b.tiles, tileSize: b.tileSize, maxzoom: b.maxzoom })
       }
+      m.addSource('pois', { type: 'geojson', data: EMPTY })
       m.addSource('journey', { type: 'geojson', data: EMPTY })
       m.addSource('user', { type: 'geojson', data: EMPTY })
 
@@ -190,6 +195,17 @@ export function MapView(props: MapProps) {
           'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-rotation-alignment': 'map', 'icon-keep-upright': false,
         },
         paint: {} })
+      // lieux utiles : sous les arrêts (prioritaires au clic), visibles à partir du zoom quartier
+      m.addLayer({ id: 'pois', type: 'circle', source: 'pois', minzoom: 13,
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 3, 16, 6],
+          'circle-color': ['get', 'color'],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 13, 1, 16, 2],
+        } })
+      m.addLayer({ id: 'pois-label', type: 'symbol', source: 'pois', minzoom: 15.5,
+        layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Italic'], 'text-size': 11.5, 'text-offset': [0, 0.9], 'text-anchor': 'top', 'text-optional': true, 'text-max-width': 9 },
+        paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 } })
       m.addLayer({ id: 'places', type: 'circle', source: 'places', minzoom: 11,
         filter: ['any', ['>=', ['zoom'], 13.5], ['==', ['get', 'core'], 1]],
         paint: {
@@ -235,6 +251,9 @@ export function MapView(props: MapProps) {
         if (st) { setHover({ x, y, items: [], pinned: true, station: st.properties!.i as number }); return }
         const place = m.queryRenderedFeatures([[x - 6, y - 6], [x + 6, y + 6]], { layers: ['places'] })[0]
         if (place) { setHover(null); onPlace.current(place.properties!.i as number); return }
+        const poi = m.getLayoutProperty('pois', 'visibility') !== 'none'
+          ? m.queryRenderedFeatures([[x - 7, y - 7], [x + 7, y + 7]], { layers: ['pois'] })[0] : undefined
+        if (poi) { setHover({ x, y, items: [], pinned: true, poi: poi.properties!.i as number }); return }
         const items = linesAt(m, x, y, 10)
         setHover(items.length ? { x, y, items, pinned: true } : null)
       })
@@ -249,6 +268,9 @@ export function MapView(props: MapProps) {
             ? m.queryRenderedFeatures([[x - 8, y - 8], [x + 8, y + 8]], { layers: ['stations'] })[0] : undefined
           if (st) { m.getCanvas().style.cursor = 'pointer'; setHover({ x, y, items: [], pinned: false, station: st.properties!.i as number }); return }
           const onPlaceHit = m.queryRenderedFeatures([[x - 5, y - 5], [x + 5, y + 5]], { layers: ['places'] }).length > 0
+          const poi = !onPlaceHit && m.getLayoutProperty('pois', 'visibility') !== 'none'
+            ? m.queryRenderedFeatures([[x - 6, y - 6], [x + 6, y + 6]], { layers: ['pois'] })[0] : undefined
+          if (poi) { m.getCanvas().style.cursor = 'pointer'; setHover({ x, y, items: [], pinned: false, poi: poi.properties!.i as number }); return }
           const items = onPlaceHit ? [] : linesAt(m, x, y)
           m.getCanvas().style.cursor = onPlaceHit || items.length ? 'pointer' : ''
           setHover(items.length ? { x, y, items, pinned: false } : null)
@@ -292,6 +314,8 @@ export function MapView(props: MapProps) {
       m.setPaintProperty('lines-casing', 'line-opacity', r != null ? ['case', ['==', ['get', 'route'], r], 1, 0] : dim ? 0 : 0.9)
       m.setPaintProperty('places', 'circle-opacity', dim ? 0.3 : 1)
       m.setPaintProperty('places', 'circle-stroke-opacity', dim ? 0.3 : 1)
+      m.setPaintProperty('pois', 'circle-opacity', dim || r != null ? 0.35 : 1)
+      m.setPaintProperty('pois', 'circle-stroke-opacity', dim || r != null ? 0.35 : 1)
       m.setPaintProperty('lines', 'line-width', r == null
         ? ['interpolate', ['linear'], ['zoom'], 10, ['match', ['get', 'kind'], 'region', 0.8, 1.2], 15, ['match', ['get', 'kind'], 'region', 2.5, 4]]
         // le zoom doit rester au premier niveau de l'expression : la condition va dans chaque palier
@@ -314,7 +338,8 @@ export function MapView(props: MapProps) {
       const m = map.current!
       const r = props.previewRoute ?? props.highlightRoute ?? -1
       // la puce « Trains » ('gares') pilote à la fois les gares et les lignes TER
-      const lineKinds = props.kinds.filter((k): k is Kind => k !== 'gares').concat(props.kinds.includes('gares') ? ['train'] : [])
+      const lineKinds = props.kinds.filter((k): k is Kind => k !== 'gares' && k !== 'lieux').concat(props.kinds.includes('gares') ? ['train'] : [])
+      for (const l of ['pois', 'pois-label']) m.setLayoutProperty(l, 'visibility', props.kinds.includes('lieux') ? 'visible' : 'none')
       const kinds = ['literal', lineKinds] as any
       const vis = props.kinds.includes('gares') ? 'visible' : 'none'
       for (const l of ['stations-halo', 'stations', 'stations-label']) m.setLayoutProperty(l, 'visibility', vis)
@@ -328,6 +353,18 @@ export function MapView(props: MapProps) {
       setHover(null)
     })
   }, [props.kinds.join(','), props.highlightRoute, props.previewRoute])
+
+  // lieux utiles (chargés après la carte)
+  useEffect(() => {
+    whenReady(() => {
+      const p = props.pois
+      const color = new Map(p?.categories.map(c => [c.id, c.color]) ?? [])
+      ;(map.current!.getSource('pois') as GeoJSONSource).setData(p ? {
+        type: 'FeatureCollection',
+        features: p.pois.map(x => ({ type: 'Feature', properties: { i: x.i, name: x.name, color: color.get(x.cat) ?? '#6b7280' }, geometry: { type: 'Point', coordinates: [x.lon, x.lat] } })),
+      } : EMPTY)
+    })
+  }, [props.pois])
 
   // lignes survolées mises en évidence
   useEffect(() => {
@@ -384,7 +421,8 @@ export function MapView(props: MapProps) {
   return (
     <>
       <div ref={el} class="map" role="region" aria-label="Carte du réseau" />
-      {hover && <LineTooltip net={props.net} hover={hover} onRoute={r => { setHover(null); props.onRoute(r) }} onPlace={pl => { setHover(null); props.onPlace(pl) }} onClose={() => setHover(null)} />}
+      {hover && <LineTooltip net={props.net} pois={props.pois} hover={hover} onRoute={r => { setHover(null); props.onRoute(r) }} onPlace={pl => { setHover(null); props.onPlace(pl) }}
+        onPoi={p => { setHover(null); props.onPoi(p) }} onClose={() => setHover(null)} />}
       <div class="map-credits">
         {props.basemap === 'satellite' && <>© <a href="https://geoservices.ign.fr/" target="_blank" rel="noopener">IGN – orthophotos</a> · </>}
         {props.basemap === 'velo' && <><a href="https://www.cyclosm.org/" target="_blank" rel="noopener">CyclOSM</a> · </>}
@@ -395,14 +433,42 @@ export function MapView(props: MapProps) {
   )
 }
 
-function LineTooltip({ net, hover, onRoute, onPlace, onClose }: { net: Network; hover: Hover; onRoute: (r: number) => void; onPlace: (pl: number) => void; onClose: () => void }) {
+function LineTooltip({ net, pois, hover, onRoute, onPlace, onPoi, onClose }: {
+  net: Network; pois: Pois | null; hover: Hover; onRoute: (r: number) => void; onPlace: (pl: number) => void; onPoi: (p: Poi) => void; onClose: () => void
+}) {
   const w = 300
   const left = Math.max(8, Math.min(hover.x + 14, window.innerWidth - w - 8))
   const below = hover.y < window.innerHeight * 0.4
   const style = { left: `${left}px`, width: `${w}px`, ...(below ? { top: `${hover.y + 14}px` } : { bottom: `${window.innerHeight - hover.y + 14}px` }) }
   return (
-    <div class={`line-tip${hover.pinned ? ' pinned' : ''}`} style={style} role={hover.pinned ? 'dialog' : 'tooltip'} aria-label="Lignes à cet endroit">
+    <div class={`line-tip${hover.pinned ? ' pinned' : ''}`} style={style} role={hover.pinned ? 'dialog' : 'tooltip'} aria-label={hover.poi != null ? 'Lieu' : 'Lignes à cet endroit'}>
       {hover.pinned && <button class="tip-close" onClick={onClose} aria-label="Fermer"><Icon name="close" size={16} /></button>}
+      {hover.poi != null && pois && (() => {
+        const p = pois.pois[hover.poi]
+        const cat = pois.categories.find(c => c.id === p.cat)
+        return (
+          <div class="tip-poi">
+            <div class="tip-station">
+              <span class="poi-icon" style={{ color: cat?.color }}><Icon name="pin" size={22} /></span>
+              <span class="tip-text"><strong>{p.name}</strong><span class="tip-od">{p.type} · {p.commune}</span></span>
+            </div>
+            {hover.pinned && (
+              <>
+                {p.hours && <p class="tip-line"><Icon name="clock" size={14} /><span>{hoursLabel(p.hours).map((l, k) => <span key={k} class="tip-hours">{l}</span>)}</span></p>}
+                {p.access === 'yes' && <p class="tip-line">Accessible en fauteuil roulant</p>}
+                {p.access === 'limited' && <p class="tip-line">Accès en fauteuil limité</p>}
+                <div class="tip-actions">
+                  <button class="btn primary small" onClick={() => onPoi(p)}><Icon name="route" size={16} /> Y aller</button>
+                  {p.phone && <a class="btn small" href={`tel:${p.phone.replace(/[^+\d]/g, '')}`}><Icon name="phone" size={16} /> Appeler</a>}
+                  {p.web && <a class="btn small" href={p.web} target="_blank" rel="noopener noreferrer"><Icon name="external" size={16} /> Site</a>}
+                </div>
+                <p class="tip-src">Données OpenStreetMap</p>
+              </>
+            )}
+            {!hover.pinned && <div class="tip-hint">Cliquez pour l’itinéraire et les horaires</div>}
+          </div>
+        )
+      })()}
       {hover.station != null && (() => {
         const st = net.stations[hover.station]
         return (

@@ -1,5 +1,6 @@
 // Modèle de données du réseau + fonctions horaires (prochains départs, calendriers).
 // Toutes les heures sont en secondes depuis minuit, heure de Paris.
+import { useEffect, useState } from 'preact/hooks'
 import { dataUrl } from './tenant'
 
 export type Kind = 'urbain' | 'scolaire' | 'tad' | 'region' | 'train'
@@ -252,7 +253,47 @@ export async function loadFares(): Promise<Fares | null> {
   } catch { return null }
 }
 
-export const fmtEur = (v: number) => (v === 0 ? 'Gratuit' : v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }))
+// ------------------------------------------------------------------ lieux utiles (OpenStreetMap, pipeline/build_pois.py)
+
+export interface PoiCategory { id: string; label: string; color: string }
+export interface Poi {
+  i: number; name: string; cat: string; type: string; commune: string; lat: number; lon: number
+  hours?: string; phone?: string; web?: string; access?: 'yes' | 'limited' | 'no'
+}
+export interface Pois { source: string; categories: PoiCategory[]; pois: Poi[] }
+
+export async function loadPois(): Promise<Pois | null> {
+  try {
+    const res = await fetch(dataUrl('pois.json'))
+    if (!res.ok) return null
+    const d = await res.json()
+    if (!Array.isArray(d?.pois)) return null
+    return {
+      source: d.source,
+      categories: d.categories,
+      pois: d.pois.map(([name, cat, type, commune, lat, lon, x]: any[], i: number) => ({
+        i, name, cat, type, commune, lat, lon, hours: x?.h, phone: x?.t, web: x?.w, access: x?.a,
+      })),
+    }
+  } catch { return null }
+}
+
+let poisOnce: Promise<Pois | null> | null = null
+/** Lieux utiles, chargés une seule fois (null tant qu'ils ne sont pas arrivés ou s'ils manquent). */
+export function usePois(): Pois | null {
+  const [p, setP] = useState<Pois | null>(null)
+  useEffect(() => { (poisOnce ??= loadPois()).then(setP) }, [])
+  return p
+}
+
+/** Horaires OSM (« Mo-Fr 08:30-12:00; Sa off ») en clair, une ligne par règle : « lun.-ven. 08:30-12:00 », « sam. fermé ». */
+export function hoursLabel(h: string): string[] {
+  const days: Record<string, string> = { Mo: 'lun.', Tu: 'mar.', We: 'mer.', Th: 'jeu.', Fr: 'ven.', Sa: 'sam.', Su: 'dim.', PH: 'jours fériés' }
+  return h.replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su|PH)\b/g, d => days[d]).replace(/\boff\b/g, 'fermé').replace(/24\/7/, '24 h/24, 7 j/7')
+    .replace(/,(?=\d)/g, ', ').split(/\s*;\s*/).filter(Boolean)
+}
+
+export const fmtEur =(v: number) => (v === 0 ? 'Gratuit' : v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }))
 
 /** « Gare du Péage-de-Roussillon », « Gare de Valence », « Gare des Arcs », « Gare de la Part-Dieu »… */
 export function stationLabel(name: string): string {

@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { Fares, Kind, Network, Trip, loadFares, loadNetwork, parisNow, distance } from './net'
+import { Fares, Kind, Network, Pois, Trip, loadFares, loadNetwork, parisNow, distance, usePois } from './net'
 import type { Journey } from './router'
 import { MapView, type Basemap } from './map'
 import { Icon, RoutePreview } from './ui'
@@ -19,9 +19,10 @@ type Pos = { lat: number; lon: number; simulated: boolean; reason?: string; at?:
 
 const isDesktop = () => window.matchMedia('(min-width: 900px)').matches
 
-type MapKey = Kind | 'gares'
-const ALL_KINDS: MapKey[] = ['urbain', 'tad', 'scolaire', 'region', 'gares']
-const KINDS_KEY = storageKey('map-kinds:v2')
+type MapKey = Kind | 'gares' | 'lieux'
+const ALL_KINDS: MapKey[] = ['urbain', 'tad', 'scolaire', 'region', 'gares', 'lieux']
+// v3 : ajout des lieux utiles, affichés par défaut (une préférence v2 les aurait masqués)
+const KINDS_KEY = storageKey('map-kinds:v3')
 
 /** Types de lignes affichés sur la carte, mémorisés sur l'appareil. */
 function useMapKinds() {
@@ -39,26 +40,27 @@ function useMapKinds() {
 }
 
 /** Filtre de la carte : réseau local (urbain, TAD, scolaire) et cars Région. */
-function MapFilters({ net, kinds, toggle, setGroup }: { net: Network; kinds: MapKey[]; toggle: (k: MapKey) => void; setGroup: (g: MapKey[], on: boolean) => void }) {
+function MapFilters({ net, pois, kinds, toggle, setGroup }: { net: Network; pois: Pois | null; kinds: MapKey[]; toggle: (k: MapKey) => void; setGroup: (g: MapKey[], on: boolean) => void }) {
   const has = (k: Kind) => net.routes.some(r => r.kind === k)
   const local = (['urbain', 'tad', 'scolaire'] as Kind[]).filter(has)
-  const labels: Record<MapKey, string> = { urbain: 'Urbain', tad: 'TAD', scolaire: 'Scolaire', region: 'Région', train: 'Trains', gares: 'Trains' }
+  const labels: Record<MapKey, string> = { urbain: 'Urbain', tad: 'TAD', scolaire: 'Scolaire', region: 'Région', train: 'Trains', gares: 'Trains', lieux: 'Lieux' }
   const swatch = (k: MapKey) => (k === 'gares' ? '#1e3a8a' : net.routes.find(r => r.kind === k)?.color ?? '#888')
   const allLocal = local.every(k => kinds.includes(k))
   const chip = (k: MapKey) => (
     <button key={k} class={`map-chip${kinds.includes(k) ? ' on' : ''}`} aria-pressed={kinds.includes(k)} onClick={() => toggle(k)}
-      title={kinds.includes(k) ? `Masquer les lignes ${labels[k].toLowerCase()}` : `Afficher les lignes ${labels[k].toLowerCase()}`}>
+      title={k === 'lieux' ? (kinds.includes(k) ? 'Masquer les lieux utiles (mairies, écoles, santé…)' : 'Afficher les lieux utiles (mairies, écoles, santé…)')
+        : kinds.includes(k) ? `Masquer les lignes ${labels[k].toLowerCase()}` : `Afficher les lignes ${labels[k].toLowerCase()}`}>
       <span class={`swatch swatch-${k}`} style={{ background: swatch(k) }} aria-hidden="true" />{labels[k]}
     </button>
   )
   return (
-    <div class="map-filters" role="group" aria-label="Types de lignes affichés sur la carte">
+    <div class="map-filters" role="group" aria-label="Lignes et lieux affichés sur la carte">
       <div class="filter-group">
         <button class={`group-label${allLocal ? ' on' : ''}`} aria-pressed={allLocal} onClick={() => setGroup(local, !allLocal)}
           title={allLocal ? `Masquer tout le réseau ${net.tenant.name}` : `Afficher tout le réseau ${net.tenant.name}`}>{net.tenant.name}</button>
         {local.map(chip)}
       </div>
-      {(has('region') || net.stations.length > 0) && <div class="filter-group">{has('region') && chip('region')}{net.stations.length > 0 && chip('gares')}</div>}
+      {(has('region') || net.stations.length > 0 || pois) && <div class="filter-group">{has('region') && chip('region')}{net.stations.length > 0 && chip('gares')}{pois && chip('lieux')}</div>}
     </div>
   )
 }
@@ -106,6 +108,7 @@ function Shell({ net }: { net: Network }) {
   useEffect(() => { loadFares().then(setFares) }, [])
   const { fav, toggle, saveLocation, removeLocation } = useFavorites()
   const mapKinds = useMapKinds()
+  const pois = usePois()
   const [basemap, setBasemapState] = useState<Basemap>(() => {
     try { const v = localStorage.getItem('maillage:basemap'); if (v === 'plan' || v === 'satellite' || v === 'velo') return v } catch { /* stockage indisponible */ }
     return 'plan'
@@ -196,9 +199,10 @@ function Shell({ net }: { net: Network }) {
     <RoutePreview.Provider value={preview}>
     <div class={`shell${desktop ? ' desktop' : ''}${!desktop && snap === 'full' ? ' sheet-full' : ''}`}>
       {!mapReady && <div class="map-loading" role="status"><div class="spinner" /> Chargement de la carte…</div>}
-      <MapView net={net} basemap={basemap} onReady={() => setMapReady(true)} user={pos} highlightRoute={highlightRoute} previewRoute={previewRoute} journey={journey} focus={focus} padding={padding} onPlace={openPlace} onRoute={openRoute} kinds={mapKinds.kinds} />
+      <MapView net={net} basemap={basemap} onReady={() => setMapReady(true)} user={pos} highlightRoute={highlightRoute} previewRoute={previewRoute} journey={journey} focus={focus} padding={padding} onPlace={openPlace} onRoute={openRoute} kinds={mapKinds.kinds}
+        pois={pois} onPoi={p => goLocation({ lat: p.lat, lon: p.lon, name: p.name.toLowerCase().includes(p.commune.toLowerCase()) ? p.name : `${p.name}, ${p.commune}` })} />
       {previewRoute != null && previewRoute !== highlightRoute && <RoutePreviewCard net={net} route={previewRoute} now={now} />}
-      <MapFilters net={net} {...mapKinds} />
+      <MapFilters net={net} pois={pois} {...mapKinds} />
       <div class="topbar">
         <span class="brand"><span class="brand-mark" aria-hidden="true" />Maillage<em>démo · {net.tenant.name}</em></span>
         <span class="top-actions">

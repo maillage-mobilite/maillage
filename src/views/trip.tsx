@@ -2,13 +2,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { Fares, Kind, Network, fmtHM, fmtDuration, fmtDay, addDays, fmtEur } from '../net'
 import { Journey, Leg, PlanResult, Point, plan, planArriveBy, tadBookable } from '../router'
-import { Suggestion, searchAddress, searchLocal } from '../search'
+import { Suggestion, searchAddress, searchLocal, searchPois } from '../search'
 import { Empty, Header, Icon, Pill, TheoNotice } from '../ui'
 import { RtNote, TrainRowView, connectingTrains } from '../trains'
 import { useTrainRealtime } from '../realtime'
 import { refineWalks } from '../geometry'
 import { LOCATION_META, type SavedLocation } from '../store'
-import { distance, stationLabel } from '../net'
+import { distance, stationLabel, usePois } from '../net'
 
 type Now = { date: string; sec: number }
 
@@ -43,22 +43,24 @@ export function PlaceInput({ net, label, value, placeholder, onPick, near, autoF
   const [open, setOpen] = useState(false)
   const [sugg, setSugg] = useState<Suggestion[]>([])
   const input = useRef<HTMLInputElement>(null)
+  const pois = usePois()
   useEffect(() => setQ(value?.label ?? ''), [value?.label])
   useEffect(() => { if (autoFocusKey) input.current?.focus() }, [autoFocusKey])
   useEffect(() => {
     if (!open) return
-    const local = searchLocal(net, q, near).filter(s => s.kind === 'place' || s.kind === 'station')
+    // arrêts et gares d'abord, puis lieux utiles (mairie, école…), puis adresses
+    const local = [...searchLocal(net, q, near).filter(s => s.kind === 'place' || s.kind === 'station').slice(0, 3), ...searchPois(pois, q, near)]
     setSugg(local)
     // une requête par champ, annulée si l'usager continue de taper ; une annulation ne vide pas la liste
     const ctrl = new AbortController()
     const t = setTimeout(async () => {
       const addr = await searchAddress(q, near, ctrl.signal)
-      if (addr && !ctrl.signal.aborted) setSugg([...local.slice(0, 4), ...addr])
+      if (addr && !ctrl.signal.aborted) setSugg([...local, ...addr.slice(0, 4)])
     }, 250)
     return () => { clearTimeout(t); ctrl.abort() }
-  }, [q, open])
+  }, [q, open, pois])
   const pick = (s: Suggestion) => {
-    onPick({ lat: s.lat!, lon: s.lon!, label: s.kind === 'address' ? `${s.label}, ${s.detail}` : s.label })
+    onPick({ lat: s.lat!, lon: s.lon!, label: s.kind === 'address' ? `${s.label}, ${s.detail}` : s.kind === 'poi' ? poiLabel(s) : s.label })
     setOpen(false)
     input.current?.blur()
   }
@@ -80,7 +82,9 @@ export function PlaceInput({ net, label, value, placeholder, onPick, near, autoF
           ))}
           {sugg.map((s, k) => (
             <li key={k}><button onMouseDown={e => e.preventDefault()} onClick={() => pick(s)}>
-              <Icon name={s.kind === 'address' ? 'map' : s.kind === 'station' ? 'train' : 'bus'} size={16} />
+              {s.kind === 'poi'
+                ? <span class="poi-icon" style={{ color: s.color }}><Icon name="pin" size={16} /></span>
+                : <Icon name={s.kind === 'address' ? 'map' : s.kind === 'station' ? 'train' : 'bus'} size={16} />}
               <span><strong>{s.label}</strong><small>{s.kind === 'address' ? `Adresse · ${s.detail}` : s.detail}</small></span>
             </button></li>
           ))}
@@ -89,6 +93,12 @@ export function PlaceInput({ net, label, value, placeholder, onPick, near, autoF
       )}
     </div>
   )
+}
+
+/** « Mairie d'Ornex » reste tel quel ; « École des Bois » devient « École des Bois, Ornex ». */
+const poiLabel = (s: Suggestion) => {
+  const commune = s.detail.split(' · ').pop() ?? ''
+  return commune && !s.label.toLowerCase().includes(commune.toLowerCase()) ? `${s.label}, ${commune}` : s.label
 }
 
 const normalizeQ = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')

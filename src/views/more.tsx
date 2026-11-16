@@ -203,7 +203,7 @@ export function SourcesView({ net, onBack }: { net: Network; onBack: () => void 
         <strong>Non disponibles en open data</strong>
         <ul class="small">{(net.tenant.data_gaps ?? []).map(g => <li key={g}>{g}</li>)}</ul>
       </div>
-      <p class="small muted">Fond de carte © contributeurs OpenStreetMap (OpenFreeMap). Adresses : Base Adresse Nationale. {net.tenant.credits}</p>
+      <p class="small muted">Fond de carte et lieux utiles (mairies, écoles, santé, équipements) © contributeurs OpenStreetMap, ODbL (OpenFreeMap pour le fond). Adresses : Base Adresse Nationale. {net.tenant.credits}</p>
     </div>
   )
 }
