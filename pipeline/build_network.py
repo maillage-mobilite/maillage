@@ -172,7 +172,7 @@ def straight_share(coords, gap_m=600):
     total = sum(segs) or 1
     return sum(x for x in segs if x > gap_m) / total
 
-def snap_to_roads(feats, cache_path, osrm_url, min_gap_m=250, max_ratio=2.2, min_share=0.3):
+def snap_to_roads(feats, cache_path, osrm_url, min_gap_m=250, max_ratio=2.2, min_share=0.3, skip_kinds=()):
     """
     Remplace les suites de segments droits (> min_gap_m) par l'itinéraire routier OSRM
     passant par les mêmes points. Les flux sans vrai tracé (TAD, certaines lignes scolaires
@@ -186,6 +186,8 @@ def snap_to_roads(feats, cache_path, osrm_url, min_gap_m=250, max_ratio=2.2, min
     for f in feats:
         if f["properties"].get("kind") == "train":
             continue  # une voie ferrée ne suit pas les routes
+        if f["properties"].get("kind") in skip_kinds:
+            continue  # confié directement à l'appariement fin (moteur local couvrant tout le réseau)
         c = [tuple(x) for x in f["geometry"]["coordinates"]]
         # seuls les tracés majoritairement « en ligne droite » (flux sans vrai tracé) sont recalés :
         # un tracé réel simplifié contient légitimement de longs segments sur route rectiligne
@@ -281,6 +283,32 @@ def deviations(points, line, cell=60.0):
                     best = min(best, math.hypot(px - ax - t * vx, py - ay - t * vy))
         out.append(best if best < 1e9 else cell * 2)
     return out
+
+def drop_short_spurs(coords, max_leg_m=120.0, back_m=25.0):
+    """Retire les éperons : la ligne part, fait demi-tour et revient à moins de back_m de son point de départ
+    en moins de max_leg_m (accès à un arrêt placé hors chaussée, impasse). Répété jusqu'à stabilité."""
+    c = [tuple(x) for x in coords]
+    changed = True
+    while changed and len(c) > 3:
+        changed = False
+        for i in range(1, len(c) - 1):
+            a, b = c[i - 1], c[i]
+            # plus loin point j (≤ max_leg_m de parcours depuis b) qui revient près de a
+            run, j = haversine(a[1], a[0], b[1], b[0]), i + 1
+            if run > max_leg_m:
+                continue
+            while j < len(c) and run <= 2 * max_leg_m:
+                run += haversine(c[j - 1][1], c[j - 1][0], c[j][1], c[j][0])
+                if haversine(a[1], a[0], c[j][1], c[j][0]) <= back_m and haversine(a[1], a[0], b[1], b[0]) > back_m:
+                    # on reprend après le point de retour (voisin de a) : pas de micro-segment de raccord
+                    c = c[:i] + c[j + 1:] if j + 1 < len(c) else c[:i] + [c[j]]
+                    changed = True
+                    break
+                j += 1
+            if changed:
+                break
+    return c
+
 
 def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, radius=25,
                    min_ratio=0.8, max_ratio=1.25, min_matched=0.9):
@@ -392,6 +420,7 @@ def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, r
                 fixed.append(b_)
             new = fixed
         if len(new) >= 2:
+            new = drop_short_spurs(new)
             st["dev"] += deviations(resample(orig, 30.0), new)
             f["geometry"]["coordinates"] = simplify([(round(x, 5), round(y, 5)) for x, y in new], 3.5)
             f["properties"]["matched"] = 1
@@ -1195,7 +1224,8 @@ def main():
         log(f"tracés : {reversed_shapes} formes retournées pour suivre le sens de circulation")
     snap_cfg = cfg.get("snap_to_roads")
     if snap_cfg and snap_cfg.get("enabled") and not args.no_snap:
-        out["shapes"] = snap_to_roads(feats, os.path.join(args.cache, "osrm-cache.json"), snap_cfg["osrm_url"].rstrip("/"))
+        out["shapes"] = snap_to_roads(feats, os.path.join(args.cache, "osrm-cache.json"), snap_cfg["osrm_url"].rstrip("/"),
+                                      skip_kinds=set(snap_cfg.get("skip_kinds", [])))
     # trains : tracés de gare en gare sur les voies ferrées (moteur OSRM local, profil rail)
     rail_cfg = cfg.get("rail_route")
     if rail_cfg and rail_cfg.get("enabled") and not args.no_snap:
@@ -1222,6 +1252,16 @@ def main():
                 json.dump({"type": "FeatureCollection", "features": chk.pop("portions")}, fh)
             chk.pop("worst", None)
             out["shapes_check"] = chk
+        # dernière passe : éperons réintroduits par les portions refaites
+        n_sp = 0
+        for f in feats:
+            if f["properties"].get("kind") in set(match_cfg["kinds"]):
+                c0 = f["geometry"]["coordinates"]
+                c1 = drop_short_spurs(c0)
+                if len(c1) != len(c0):
+                    f["geometry"]["coordinates"] = [list(x) for x in c1]
+                    n_sp += 1
+        log(f"éperons : {n_sp} tracés nettoyés")
     for f in feats:
         f.pop("_stops", None)
     with open(os.path.join(args.out, "network.json"), "w", encoding="utf-8") as fh:

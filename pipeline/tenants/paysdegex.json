@@ -10,11 +10,12 @@
   "snap_to_roads": {
     "enabled": true,
     "osrm_url": "https://router.project-osrm.org",
-    "note": "Le flux TPG ne publie aucun tracé : les lignes sont recalées sur les routes (serveur de démonstration OSRM)."
+    "skip_kinds": ["urbain"],
+    "note": "Le flux TPG ne publie aucun tracé. Lignes urbaines : appariement fin direct (moteur genevois). Cars Région (jusqu'à Bellegarde, hors de l'extrait) : recalage grossier par le serveur de démonstration OSRM, puis appariement."
   },
   "match_to_roads": {
-    "enabled": true, "osrm_url": "http://localhost:5055", "kinds": ["urbain", "region"],
-    "note": "Appariement fin sur la chaussée : moteur OSRM local, profil bus (pipeline/osrm/osrm.sh), extrait Rhône-Alpes : côté suisse, le recalage grossier reste. Ignoré si le moteur n'est pas lancé."
+    "enabled": true, "osrm_url": "http://localhost:5057", "kinds": ["urbain", "region"], "check_kinds": ["urbain", "region"],
+    "note": "Appariement fin sur la chaussée : moteur OSRM local, profil bus, extrait BBBike de la région genevoise, Pays de Gex et Genève compris (pipeline/osrm/osrm.sh prepare-genf / start-genf). Ignoré si le moteur n'est pas lancé."
   },
   "rail_route": {
     "enabled": true, "osrm_url": "http://localhost:5056",
