@@ -1,0 +1,13 @@
+# Domaine du démonstrateur. maillage.tuatam.fr pointe sur le VPS (57.129.163.124) depuis le 16/11/2026.
+services:
+  web:
+    labels:
+      traefik.http.middlewares.maillage-https.redirectscheme.scheme: https
+      traefik.http.middlewares.maillage-https.redirectscheme.permanent: "true"
+      traefik.http.routers.maillage-http.rule: Host(`maillage.tuatam.fr`)
+      traefik.http.routers.maillage-http.entrypoints: http
+      traefik.http.routers.maillage-http.middlewares: maillage-https
+      traefik.http.routers.maillage.rule: Host(`maillage.tuatam.fr`)
+      traefik.http.routers.maillage.entrypoints: https
+      traefik.http.routers.maillage.tls: "true"
+      traefik.http.routers.maillage.tls.certresolver: letsencrypt
