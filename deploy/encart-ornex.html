@@ -1,0 +1,18 @@
+<!-- Encart « Prochains départs à Ornex » : à coller dans un bloc « HTML personnalisé » de WordPress
+     (page Transports publics d'ornex.fr). L'iframe s'ajuste toute seule à la hauteur du contenu. -->
+<div class="maillage-encart">
+  <iframe
+    src="https://maillage.tuatam.fr/widget.html?reseau=paysdegex&amp;commune=ornex"
+    title="Prochains départs des bus aux arrêts d'Ornex"
+    loading="lazy"
+    style="width:100%;max-width:720px;height:560px;border:1px solid #e2ded6;display:block"
+    data-maillage="ornex"></iframe>
+</div>
+<script>
+  // Ajuste la hauteur de l'encart à son contenu (message envoyé par la page de l'encart).
+  window.addEventListener('message', function (e) {
+    if (e.origin !== 'https://maillage.tuatam.fr' || !e.data || e.data.type !== 'maillage-widget-height') return;
+    var f = document.querySelector('iframe[data-maillage="' + e.data.commune + '"]');
+    if (f && e.data.height > 100 && e.data.height < 3000) f.style.height = e.data.height + 'px';
+  });
+</script>

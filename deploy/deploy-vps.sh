@@ -16,7 +16,8 @@ SSH=(ssh -i "$KEY" -o BatchMode=yes "$HOST")
 rsync -az --delete -e "ssh -i $KEY -o BatchMode=yes" "$SRC/dist/" "$HOST:$DIR/site/"
 
 if [[ "${1:-}" == "--config" ]]; then
-  rsync -az -e "ssh -i $KEY -o BatchMode=yes" "$SRC/deploy/compose.yml" "$SRC/deploy/compose.domain.yml" "$SRC/deploy/nginx.conf" "$HOST:$DIR/"
+  # --inplace : nginx.conf est monté seul dans le conteneur, qui suit l'inode du fichier (un remplacement ne serait pas vu)
+  rsync -az --inplace -e "ssh -i $KEY -o BatchMode=yes" "$SRC/deploy/compose.yml" "$SRC/deploy/compose.domain.yml" "$SRC/deploy/nginx.conf" "$HOST:$DIR/"
   # sans fichier de comptes, le montage Docker échouerait : on crée un fichier vide (nginx refuse alors tout accès)
   "${SSH[@]}" "[ -f $DIR/private/htpasswd ] || { sudo touch $DIR/private/htpasswd; sudo chown root:101 $DIR/private/htpasswd; sudo chmod 640 $DIR/private/htpasswd; }"
   if [[ "$(dig +short maillage.tuatam.fr A | tail -1)" == "57.129.163.124" ]]; then
@@ -25,5 +26,6 @@ if [[ "${1:-}" == "--config" ]]; then
     echo "DNS pas encore pointé : conteneur lancé sans domaine"
     "${SSH[@]}" "cd $DIR && sudo docker compose -f compose.yml up -d"
   fi
+  "${SSH[@]}" "sudo docker exec maillage-web nginx -t && sudo docker exec maillage-web nginx -s reload"
 fi
 echo "Publié : https://maillage.tuatam.fr/ (accès privé)"
