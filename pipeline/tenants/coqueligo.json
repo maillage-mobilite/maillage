@@ -2,9 +2,22 @@
   "tenant": "coqueligo",
   "name": "CoqueliGO",
   "territory": "Annonay Rhône Agglo",
-  "center": [4.6705, 45.2405],
-  "bbox": [4.50, 45.12, 4.90, 45.38],
-  "default_place": { "name": "Annonay - Gare routière", "lat": 45.2397, "lon": 4.6722 },
+  "tagline": "Annonay, Davézieux, Boulieu, Roiffieux… et la vallée du Rhône",
+  "center": [
+    4.6705,
+    45.2405
+  ],
+  "bbox": [
+    4.5,
+    45.12,
+    4.9,
+    45.38
+  ],
+  "default_place": {
+    "name": "Annonay - Gare routière",
+    "lat": 45.2397,
+    "lon": 4.6722
+  },
   "window_days": 60,
   "snap_to_roads": {
     "enabled": true,
@@ -22,7 +35,12 @@
   "match_to_roads": {
     "enabled": true,
     "osrm_url": "http://localhost:5055",
-    "kinds": ["urbain", "scolaire", "tad", "region"],
+    "kinds": [
+      "urbain",
+      "scolaire",
+      "tad",
+      "region"
+    ],
     "note": "Moteur OSRM local, profil bus (pipeline/osrm/osrm.sh). Ignoré si le moteur n'est pas lancé."
   },
   "rail_route": {
@@ -35,41 +53,71 @@
     "url": "https://www.data.gouv.fr/api/1/datasets/r/9ae758ec-cd7a-40cd-a890-bb3963224942",
     "page": "https://transport.data.gouv.fr/datasets/horaires-sncf",
     "licence": "ODbL",
-    "modes": ["Train TER", "TGV INOUI", "OUIGO", "INTERCITES", "INTERCITES de nuit", "ICE"]
+    "modes": [
+      "Train TER",
+      "TGV INOUI",
+      "OUIGO",
+      "INTERCITES",
+      "INTERCITES de nuit",
+      "ICE"
+    ]
   },
   "feeds": [
     {
-      "id": "urbain", "kind": "urbain", "name": "Réseau urbain CoqueliGO",
+      "id": "urbain",
+      "kind": "urbain",
+      "name": "Réseau urbain CoqueliGO",
       "url": "https://www.data.gouv.fr/api/1/datasets/r/3bfed862-eba7-4480-9fd5-609b90f8a282",
       "page": "https://transport.data.gouv.fr/datasets/gtfs-reseau-transport-urbain-coqueligo",
       "licence": "Licence Ouverte v2"
     },
     {
-      "id": "scolaire", "kind": "scolaire", "name": "Réseau scolaire CoqueliGO",
+      "id": "scolaire",
+      "kind": "scolaire",
+      "name": "Réseau scolaire CoqueliGO",
       "url": "https://www.data.gouv.fr/api/1/datasets/r/df09ccf2-6cf5-4d7a-b03a-b3ebb89f7e49",
       "page": "https://transport.data.gouv.fr/datasets/gtfs-reseau-scolaire-coqueligo-annonay-rhone-agglo",
       "licence": "Licence Ouverte v2"
     },
     {
-      "id": "tad", "kind": "tad", "name": "Transport à la demande CoqueliGO",
+      "id": "tad",
+      "kind": "tad",
+      "name": "Transport à la demande CoqueliGO",
       "url": "https://www.data.gouv.fr/api/1/datasets/r/5e4b3c12-dd7d-4dcf-a761-41024867e56d",
       "page": "https://transport.data.gouv.fr/datasets/gtfs-transports-a-la-demande-tad-coqueligo",
       "licence": "Licence Ouverte v2",
-      "booking": { "deadline_day_before": "15:00", "phone": "06 64 53 18 80", "confirm_window": "17h-18h la veille", "fare": "2 € (valable 1 h, correspondance urbaine incluse)" }
+      "booking": {
+        "deadline_day_before": "15:00",
+        "phone": "06 64 53 18 80",
+        "confirm_window": "17h-18h la veille",
+        "fare": "2 € (valable 1 h, correspondance urbaine incluse)"
+      }
     },
     {
-      "id": "region", "kind": "region", "name": "Cars Région (agrégat Oùra)",
+      "id": "region",
+      "kind": "region",
+      "name": "Cars Région (agrégat Oùra)",
       "url": "https://www.data.gouv.fr/api/1/datasets/r/231acea2-40cf-4c06-b2eb-646274e0b853",
       "page": "https://transport.data.gouv.fr/datasets/agregat-oura",
       "licence": "ODbL",
-      "filter": { "exclude_agency_contains": ["coqueligo"], "serving_radius_km": 6 }
+      "filter": {
+        "exclude_agency_contains": [
+          "coqueligo"
+        ],
+        "serving_radius_km": 6
+      }
     },
     {
-      "id": "train", "kind": "train", "name": "TER (SNCF) en correspondance",
+      "id": "train",
+      "kind": "train",
+      "name": "TER (SNCF) en correspondance",
       "url": "https://www.data.gouv.fr/api/1/datasets/r/9ae758ec-cd7a-40cd-a890-bb3963224942",
       "page": "https://transport.data.gouv.fr/datasets/horaires-sncf",
       "licence": "ODbL",
-      "filter": { "stop_id_contains": "OCETrain TER-", "near_existing_stops_m": 500 }
+      "filter": {
+        "stop_id_contains": "OCETrain TER-",
+        "near_existing_stops_m": 500
+      }
     }
   ],
   "links": {
@@ -79,5 +127,13 @@
     "phone": "04 75 69 39 96",
     "email": "agence@coqueligo.fr",
     "agency": "Gare routière, 46 avenue de l'Europe, 07100 Annonay"
-  }
+  },
+  "data_gaps": [
+    "Temps réel (géolocalisation des bus) : existe chez le prestataire, non publié.",
+    "Perturbations : aucun flux.",
+    "Tarifs : uniquement dans des documents PDF.",
+    "Accessibilité des arrêts : non renseignée."
+  ],
+  "credits": "Cars Région : agrégat Oùra (ODbL). Gares et horaires des trains : SNCF Open Data (ODbL).",
+  "fares_note": "Paiement par carte bancaire sans contact possible directement à bord (Open Payment). Les cars Région ont leur propre tarification."
 }

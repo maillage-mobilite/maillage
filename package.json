@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "data": "python3 -I pipeline/build_network.py pipeline/tenants/coqueligo.json --cache .cache --out public/data",
+    "data": "npm run data:coqueligo && npm run data:paysdegex",
+    "data:coqueligo": "python3 -I pipeline/build_network.py pipeline/tenants/coqueligo.json --cache .cache --out public/data/coqueligo",
+    "data:paysdegex": "python3 -I pipeline/build_network.py pipeline/tenants/paysdegex.json --cache .cache --out public/data/paysdegex",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",

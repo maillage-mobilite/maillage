@@ -1,8 +1,8 @@
-# Maillage · démonstrateur (cas CoqueliGO)
+# Maillage · démonstrateur (CoqueliGO, Pays de Gex)
 
 Prototype web mobile-first de la Phase 0 (voir [../docs/roadmap.md](../docs/roadmap.md)). Il sert à montrer à une régie, à partir de **ses seules données ouvertes**, ce que pourrait être son service numérique voyageur.
 
-> Démonstrateur indépendant et non officiel. Horaires **théoriques** uniquement. Il n'est affilié ni à CoqueliGO ni à Annonay Rhône Agglo.
+> Démonstrateur indépendant et non officiel. Horaires **théoriques** uniquement. Il n'est affilié à aucun des réseaux présentés (CoqueliGO, Annonay Rhône Agglo, Pays de Gex Agglo, TPG).
 
 ## Démarrer
 
@@ -18,9 +18,9 @@ npm run data
 npm run dev
 ```
 
-Puis ouvrir http://localhost:5199 (de préférence en vue mobile).
+Puis ouvrir http://localhost:5199 (de préférence en vue mobile) : la page d'accueil propose les territoires. Accès direct : `?reseau=coqueligo` ou `?reseau=paysdegex`.
 
-`npm run data` télécharge (avec repli automatique sur `curl` si le Python de python.org n'a pas ses certificats racine) les GTFS déclarés dans `pipeline/tenants/coqueligo.json`, dont l'agrégat régional Oùra (~110 Mo). Comptez quelques minutes la première fois. Les données générées couvrent **60 jours** à partir du jour d'exécution : il faut relancer la commande ensuite.
+`npm run data` télécharge (avec repli automatique sur `curl` si le Python de python.org n'a pas ses certificats racine) les GTFS déclarés dans `pipeline/tenants/coqueligo.json` puis `pipeline/tenants/paysdegex.json` (un seul territoire : `npm run data:coqueligo` ou `npm run data:paysdegex`), dont l'agrégat régional Oùra (~110 Mo). Comptez quelques minutes la première fois. Les données générées couvrent **60 jours** à partir du jour d'exécution : il faut relancer la commande ensuite.
 
 Autres commandes : `npm run test:router` (tests du calculateur sur les vraies données) et `npm run build` (version statique dans `dist/`, déployable sur n'importe quel hébergement de fichiers).
 
@@ -47,11 +47,12 @@ Autres commandes : `npm run test:router` (tests du calculateur sur les vraies do
 ## Architecture (volontairement minimale)
 
 ```
-pipeline/tenants/coqueligo.json      configuration du territoire (flux, liens, règles TAD)
+pipeline/tenants/<id>.json           configuration d'un territoire (flux, liens, règles TAD, lacunes)
 pipeline/build_network.py            Python standard : téléchargement, contrôle, corrections,
                                       réconciliation des arrêts, sortie compacte
-public/data/network.json  (~410 Ko) réseau complet : lignes, arrêts, pôles, courses, calendriers
-public/data/lines.geojson (~790 Ko) tracés simplifiés
+public/data/tenants.json             registre des territoires (page d'accueil)
+public/data/<id>/network.json (~410 Ko) réseau complet : lignes, arrêts, pôles, courses, calendriers
+public/data/<id>/lines.geojson (~790 Ko) tracés simplifiés
 src/net.ts                           modèle, calendriers, prochains départs
 src/router.ts                        calcul d'itinéraires (Connection Scan Algorithm)
 src/map.tsx                          MapLibre GL 5 + fond OpenFreeMap

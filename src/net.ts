@@ -1,5 +1,6 @@
 // Modèle de données du réseau + fonctions horaires (prochains départs, calendriers).
 // Toutes les heures sont en secondes depuis minuit, heure de Paris.
+import { dataUrl } from './tenant'
 
 export type Kind = 'urbain' | 'scolaire' | 'tad' | 'region' | 'train'
 
@@ -47,7 +48,10 @@ export interface Booking { deadline_day_before: string; phone: string; confirm_w
 
 export interface Network {
   generatedAt: string
-  tenant: { tenant: string; name: string; territory: string; center: [number, number]; bbox: number[]; links: Record<string, string> }
+  tenant: {
+    tenant: string; name: string; territory: string; center: [number, number]; bbox: number[]; links: Record<string, string | undefined>
+    default_place?: { name: string; lat: number; lon: number }; data_gaps?: string[]; credits?: string; fares_note?: string
+  }
   booking: Record<string, Booking>
   windowStart: string
   windowDays: number
@@ -75,7 +79,7 @@ export interface Network {
 }
 
 export async function loadNetwork(): Promise<Network> {
-  const res = await fetch(`${import.meta.env.BASE_URL}data/network.json`)
+  const res = await fetch(dataUrl('network.json'))
   if (!res.ok) throw new Error(`Données indisponibles (${res.status})`)
   return parseNetwork(await res.json())
 }
@@ -243,7 +247,7 @@ export interface Fares { source: string; source_url: string; retrieved: string; 
 
 export async function loadFares(): Promise<Fares | null> {
   try {
-    const res = await fetch(`${import.meta.env.BASE_URL}data/fares.json`)
+    const res = await fetch(dataUrl('fares.json'))
     return res.ok ? await res.json() : null
   } catch { return null }
 }

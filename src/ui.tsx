@@ -104,7 +104,8 @@ export function Empty({ icon = 'info', title, children }: { icon?: string; title
 }
 
 /** Lien « Signaler un problème » : courriel pré-rempli à l'agence (en production : formulaire vers le back-office). */
-export function ReportLink({ email, subject, context }: { email: string; subject: string; context: string }) {
+export function ReportLink({ email, subject, context }: { email?: string; subject: string; context: string }) {
+  if (!email) return null // territoire sans adresse de signalement publiée
   const body = `Bonjour,\n\nJe souhaite signaler un problème :\n\n(décrivez ici : horaire erroné, arrêt déplacé, information manquante…)\n\n---\n${context}\nSignalé depuis le démonstrateur Maillage le ${new Date().toLocaleString('fr-FR')}.`
   return (
     <a class="report-link" href={`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}>

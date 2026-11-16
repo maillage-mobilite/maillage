@@ -903,6 +903,10 @@ def main():
         for rid in used_routes:
             r, ag = raw_routes[rid.split(":", 1)[1]]
             color = (r.get("route_color") or "").strip().upper()
+            short0 = (r.get("route_short_name") or "").replace("Ligne ", "").strip()
+            if not re.fullmatch(r"[0-9A-F]{6}", color) and short0 in feed.get("route_colors", {}):
+                color = feed["route_colors"][short0].lstrip("#").upper()  # couleur absente du flux : fixée dans la configuration
+                rep["fixes"]["couleur_ligne_ajoutee"] += 1
             if not re.fullmatch(r"[0-9A-F]{6}", color):
                 color = {"region": "3F5873", "tad": "6B4FA0", "train": "1E3A8A"}.get(kind, "4B5563")
             short = (r.get("route_short_name") or "").replace("Ligne ", "").strip()
@@ -990,6 +994,20 @@ def main():
                        "feeds": sorted({stops[m]["feed"] for m in members})})
     log(f"réconciliation : {len(ids)} arrêts → {len(places)} pôles ({cross_merges} rapprochements inter-flux)")
 
+
+    # ------------------------------------------------ noms de lignes absents du flux : « origine – terminus » le plus fréquent
+    ends_by_route = defaultdict(Counter)
+    for t in trips:
+        ends_by_route[t["route"]][(places[place_of[t["stops"][0]]]["name"], places[place_of[t["stops"][-1]]]["name"])] += 1
+    for rid, r in routes.items():
+        if r["long"] or not ends_by_route[rid]:
+            continue
+        pairs = ends_by_route[rid]
+        a, b = pairs.most_common(1)[0][0]
+        r["long"] = f"{a} – {b}" if a != b else f"Boucle {a}"
+        rep_f = next((f for f in feeds_report if rid.startswith(f["id"] + ":")), None)
+        if rep_f is not None:
+            rep_f["fixes"]["nom_de_ligne_ajoute"] = rep_f["fixes"].get("nom_de_ligne_ajoute", 0) + 1
 
     # ------------------------------------------------ gares ferroviaires en correspondance
     stations_out = []
@@ -1100,7 +1118,7 @@ def main():
     out = {
         "version": 1,
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
-        "tenant": {k: cfg[k] for k in ("tenant", "name", "territory", "center", "bbox", "links")},
+        "tenant": {k: cfg[k] for k in ("tenant", "name", "territory", "center", "bbox", "links", "default_place", "data_gaps", "credits", "fares_note") if k in cfg},
         "booking": {f["id"]: f["booking"] for f in cfg["feeds"] if f.get("booking")},
         "window_start": win_start.isoformat(),
         "window_days": win_days,
@@ -1197,6 +1215,16 @@ def main():
         src = os.path.join(os.path.dirname(args.tenant), cfg["fares_file"])
         shutil.copyfile(src, os.path.join(args.out, "fares.json"))
         log(f"tarifs : {len(json.load(open(src))['fares'])} titres copiés depuis {cfg['fares_file']}")
+
+    # registre des territoires (page d'accueil « choisir un territoire »), à côté des dossiers de données
+    reg_path = os.path.join(os.path.dirname(os.path.abspath(args.out)), "tenants.json")
+    reg = json.load(open(reg_path, encoding="utf-8")) if os.path.exists(reg_path) else []
+    entry = {"id": cfg["tenant"], "name": cfg["name"], "territory": cfg["territory"], "tagline": cfg.get("tagline", ""),
+             "lines": len(route_ids), "stops": len(places), "updated": today.isoformat()}
+    reg = [x for x in reg if x.get("id") != cfg["tenant"]] + [entry]
+    reg.sort(key=lambda x: x["name"])
+    with open(reg_path, "w", encoding="utf-8") as fh:
+        json.dump(reg, fh, ensure_ascii=False, indent=1)
 
     size = os.path.getsize(os.path.join(args.out, "network.json")) / 1024
     size2 = os.path.getsize(os.path.join(args.out, "lines.geojson")) / 1024

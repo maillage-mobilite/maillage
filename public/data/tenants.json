@@ -1,0 +1,20 @@
+[
+ {
+  "id": "coqueligo",
+  "name": "CoqueliGO",
+  "territory": "Annonay Rhône Agglo",
+  "tagline": "Annonay, Davézieux, Boulieu, Roiffieux… et la vallée du Rhône",
+  "lines": 69,
+  "stops": 755,
+  "updated": "2026-11-13"
+ },
+ {
+  "id": "paysdegex",
+  "name": "Pays de Gex",
+  "territory": "Pays de Gex Agglo",
+  "tagline": "Ornex, Ferney-Voltaire, Gex, Saint-Genis-Pouilly… et Genève",
+  "lines": 39,
+  "stops": 392,
+  "updated": "2026-11-16"
+ }
+]

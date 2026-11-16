@@ -1,6 +1,6 @@
 // Onglet Itinéraire : saisie, résultats, détail, réservation TAD (démonstration).
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { Fares, Network, fmtHM, fmtDuration, fmtDay, addDays, fmtEur } from '../net'
+import { Fares, Kind, Network, fmtHM, fmtDuration, fmtDay, addDays, fmtEur } from '../net'
 import { Journey, Leg, PlanResult, Point, plan, planArriveBy, tadBookable } from '../router'
 import { Suggestion, searchAddress, searchLocal } from '../search'
 import { Empty, Header, Icon, Pill, TheoNotice } from '../ui'
@@ -94,12 +94,12 @@ export function PlaceInput({ net, label, value, placeholder, onPick, near, autoF
 const normalizeQ = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 export function TripView({ net, now, pos, state, setState, fares, saved = [], onManageLocations }: {
-  net: Network; now: Now; pos: { lat: number; lon: number; simulated: boolean }; fares: Fares | null
+  net: Network; now: Now; pos: { lat: number; lon: number; simulated: boolean; at?: string }; fares: Fares | null
   saved?: SavedLocation[]; onManageLocations?: () => void
   state: TripState; setState: (u: (s: TripState) => TripState) => void
 }) {
   const [busy, setBusy] = useState(false)
-  const myPos: Point = { lat: pos.lat, lon: pos.lon, label: pos.simulated ? 'Ma position (simulée : gare routière)' : 'Ma position' }
+  const myPos: Point = { lat: pos.lat, lon: pos.lon, label: pos.simulated ? `Ma position (simulée : ${pos.at ?? 'pôle principal'})` : 'Ma position' }
 
   const run = (s: TripState) => {
     if (!s.to) return
@@ -176,16 +176,16 @@ export function TripView({ net, now, pos, state, setState, fares, saved = [], on
           )}
         </div>
         <details class="options">
-          <summary>Options <small>({[state.tad && 'TAD', state.train && 'trains', state.scolaire && 'scolaires'].filter(Boolean).join(', ') || 'aucune'})</small></summary>
+          <summary>Options <small>({[state.tad && net.routes.some(r => r.kind === 'tad') && 'TAD', state.train && 'trains', state.scolaire && net.routes.some(r => r.kind === 'scolaire') && 'scolaires'].filter(Boolean).join(', ') || 'aucune'})</small></summary>
         <div class="toggles">
-          <label class="toggle"><input type="checkbox" checked={state.tad} onChange={e => setState(s => ({ ...s, tad: (e.target as HTMLInputElement).checked }))} /> Transport à la demande</label>
+          {net.routes.some(r => r.kind === 'tad') && <label class="toggle"><input type="checkbox" checked={state.tad} onChange={e => setState(s => ({ ...s, tad: (e.target as HTMLInputElement).checked }))} /> Transport à la demande</label>}
           <label class="toggle"><input type="checkbox" checked={state.train} onChange={e => setState(s => ({ ...s, train: (e.target as HTMLInputElement).checked }))} /> Trains (TER)</label>
-          <label class="toggle"><input type="checkbox" checked={state.scolaire} onChange={e => setState(s => ({ ...s, scolaire: (e.target as HTMLInputElement).checked }))} /> Lignes scolaires <small>(à confirmer)</small></label>
+          {net.routes.some(r => r.kind === 'scolaire') && <label class="toggle"><input type="checkbox" checked={state.scolaire} onChange={e => setState(s => ({ ...s, scolaire: (e.target as HTMLInputElement).checked }))} /> Lignes scolaires <small>(à confirmer)</small></label>}
         </div>
         </details>
       </div>
 
-      {!state.to && <Empty icon="route" title="Où voulez-vous aller ?">Saisissez une adresse, un arrêt ou un lieu. Le calcul combine bus urbains, transport à la demande et cars Région.</Empty>}
+      {!state.to && <Empty icon="route" title="Où voulez-vous aller ?">Saisissez une adresse, un arrêt ou un lieu. Le calcul combine {[...new Set(net.routes.map(r => KIND_PHRASE[r.kind]))].join(', ').replace(/, ([^,]*)$/, ' et $1')}.</Empty>}
       {busy && <p class="muted pad">Calcul en cours…</p>}
       {state.result && !busy && <Results net={net} now={now} res={state.result} at={state.searchedAt!} fares={fares} onOpen={k => setState(s => ({ ...s, selected: k }))} />}
     </div>
@@ -198,6 +198,8 @@ function legIcons(net: Network, j: Journey) {
     : <Pill key={k} route={net.routes[l.trip.route]} small />)
 }
 
+
+const KIND_PHRASE: Record<Kind, string> = { urbain: 'bus urbains', tad: 'transport à la demande', scolaire: 'lignes scolaires', region: 'cars Région', train: 'trains' }
 function Results({ net, now, res, at, fares, onOpen }: { net: Network; now: Now; res: PlanResult; at: { date: string; sec: number }; fares: Fares | null; onOpen: (k: number) => void }) {
   const isToday = at.date === now.date
   return (
@@ -205,7 +207,8 @@ function Results({ net, now, res, at, fares, onOpen }: { net: Network; now: Now;
       {res.notes.map((n, k) => <p key={k} class="notice">{n}</p>)}
       {res.journeys.length === 0 && !res.directWalk && (
         <Empty icon="clock" title="Aucun trajet trouvé dans les 48 h">
-          Essayez d'activer le transport à la demande, ou contactez l'agence au {net.tenant.links.phone}.
+          {net.routes.some(r => r.kind === 'tad') ? "Essayez d'activer le transport à la demande. " : 'Essayez un autre horaire. '}
+          {net.tenant.links.phone && <>Vous pouvez aussi contacter l'agence au {net.tenant.links.phone}.</>}
         </Empty>
       )}
       <p class="sr-only" role="status" aria-live="polite">

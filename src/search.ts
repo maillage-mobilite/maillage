@@ -42,15 +42,18 @@ export function searchLocal(net: Network, q: string, near?: { lat: number; lon: 
   return out.sort((a, b) => a.score - b.score).slice(0, 6)
 }
 
+const ADDRESS_RADIUS_M = 60_000
+
 /** Recherche d'adresses (BAN). Renvoie null si la requête a été annulée (frappe suivante). */
 export async function searchAddress(q: string, near: { lat: number; lon: number }, signal?: AbortSignal): Promise<Suggestion[] | null> {
   if (q.trim().length < 3) return []
-  const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=5&lat=${near.lat}&lon=${near.lon}`
+  // la BAN ne fait que favoriser les résultats proches : on en demande plus et on écarte ceux hors du territoire
+  const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=20&lat=${near.lat}&lon=${near.lon}`
   try {
     const res = await fetch(url, { signal })
     if (!res.ok) return []
     const json = await res.json()
-    return json.features.map((f: any) => ({
+    return json.features.filter((f: any) => distance(near.lat, near.lon, f.geometry.coordinates[1], f.geometry.coordinates[0]) <= ADDRESS_RADIUS_M).slice(0, 5).map((f: any) => ({
       kind: 'address' as const,
       label: f.properties.name,
       detail: `${f.properties.postcode ?? ''} ${f.properties.city ?? ''}`.trim(),

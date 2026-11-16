@@ -11,7 +11,7 @@ import { LOCATION_META, type SavedLocation } from '../store'
 import type { Favorites } from '../store'
 
 type Now = { date: string; sec: number }
-type Pos = { lat: number; lon: number; simulated: boolean; reason?: string }
+type Pos = { lat: number; lon: number; simulated: boolean; reason?: string; at?: string }
 
 /** Regroupe les départs par ligne + direction, en gardant les 2 prochains. */
 function grouped(net: Network, stops: number[], now: Now, limit = 40) {
@@ -101,7 +101,7 @@ export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch, onGoLo
       <button class="search-pill" onClick={onSearch}>
         <Icon name="search" /> <span>Où allez-vous ?</span>
       </button>
-      {pos.simulated && <p class="notice"><Icon name="locate" size={16} /> {pos.reason ?? 'Position simulée'} : départ affiché depuis la gare routière d'Annonay.</p>}
+      {pos.simulated && <p class="notice"><Icon name="locate" size={16} /> {pos.reason ?? 'Position simulée'} : départ affiché depuis {pos.at ?? 'le pôle principal du réseau'}.</p>}
       {outOfData && <p class="notice warn">Les données chargées ne couvrent pas la date du jour. Relancez le pipeline (<code>npm run data</code>).</p>}
 
       {fav.locations.length > 0 ? (

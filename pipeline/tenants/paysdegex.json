@@ -1,0 +1,68 @@
+{
+  "tenant": "paysdegex",
+  "name": "Pays de Gex",
+  "territory": "Pays de Gex Agglo",
+  "tagline": "Ornex, Ferney-Voltaire, Gex, Saint-Genis-Pouilly… et Genève",
+  "center": [6.0990, 46.2700],
+  "bbox": [5.85, 46.12, 6.25, 46.42],
+  "default_place": { "name": "Ornex, Prénépla", "lat": 46.2696, "lon": 6.0985 },
+  "window_days": 60,
+  "snap_to_roads": {
+    "enabled": true,
+    "osrm_url": "https://router.project-osrm.org",
+    "note": "Le flux TPG ne publie aucun tracé : les lignes sont recalées sur les routes (serveur de démonstration OSRM)."
+  },
+  "rail_stations": {
+    "name": "Gares de voyageurs (SNCF Open Data)",
+    "url": "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/gares-de-voyageurs/exports/json",
+    "page": "https://ressources.data.sncf.com/explore/dataset/gares-de-voyageurs/",
+    "licence": "ODbL",
+    "max_walk_m": 500
+  },
+  "rail_timetables": {
+    "name": "Réseau SNCF TGV, Intercités et TER (GTFS)",
+    "url": "https://www.data.gouv.fr/api/1/datasets/r/9ae758ec-cd7a-40cd-a890-bb3963224942",
+    "page": "https://transport.data.gouv.fr/datasets/horaires-sncf",
+    "licence": "ODbL",
+    "modes": ["Train TER", "TGV INOUI", "OUIGO", "INTERCITES", "INTERCITES de nuit", "ICE"]
+  },
+  "feeds": [
+    {
+      "id": "urbain", "kind": "urbain", "name": "Réseau urbain du Pays de Gex (lignes TPG)",
+      "url": "https://www.data.gouv.fr/api/1/datasets/r/95c73b12-d117-4faf-bb6f-abfe3c95eee1",
+      "page": "https://transport.data.gouv.fr/datasets/transports-publics-urbains-sur-le-territoire-de-la-ca-du-pays-de-gex-1",
+      "licence": "Licence Ouverte v2",
+      "route_colors": {
+        "60": "1D4ED8", "61": "C2185B", "40": "0E7490", "52": "15803D", "64": "B45309",
+        "66": "7C3AED", "67": "BE123C", "68": "0F766E", "69": "4D7C0F"
+      }
+    },
+    {
+      "id": "region", "kind": "region", "name": "Cars Région (agrégat Oùra)",
+      "url": "https://www.data.gouv.fr/api/1/datasets/r/231acea2-40cf-4c06-b2eb-646274e0b853",
+      "page": "https://transport.data.gouv.fr/datasets/agregat-oura",
+      "licence": "ODbL",
+      "filter": { "exclude_agency_contains": ["transports publics genevois"], "serving_radius_km": 12 }
+    },
+    {
+      "id": "train", "kind": "train", "name": "TER (SNCF) en correspondance",
+      "url": "https://www.data.gouv.fr/api/1/datasets/r/9ae758ec-cd7a-40cd-a890-bb3963224942",
+      "page": "https://transport.data.gouv.fr/datasets/horaires-sncf",
+      "licence": "ODbL",
+      "filter": { "stop_id_contains": "OCETrain TER-", "near_existing_stops_m": 500 }
+    }
+  ],
+  "data_gaps": [
+    "Tracés des lignes : absents du flux (lignes recalées sur les routes par le démonstrateur).",
+    "Temps réel des bus TPG : publié côté suisse (opentransportdata.swiss, clé d'API), non branché ici.",
+    "Tarifs Unireso / Léman Pass : aucun flux GTFS-Fares.",
+    "Accessibilité des arrêts : non renseignée.",
+    "Couleurs des lignes : absentes du flux, couleurs indicatives choisies par le démonstrateur."
+  ],
+  "credits": "Bus : Pays de Gex Agglo / TPG (Licence Ouverte). Cars Région : agrégat Oùra (ODbL). Trains : SNCF Open Data (ODbL).",
+  "links": {
+    "tickets": "https://www.tpg.ch/fr/tarifs-titres-de-transport",
+    "website": "https://www.paysdegexagglo.fr/",
+    "operator": "https://www.tpg.ch/"
+  }
+}

@@ -1,5 +1,6 @@
 // Favoris et lieux enregistrés, stockés sur l'appareil uniquement (pas de compte : ADR-010).
 import { useEffect, useState } from 'preact/hooks'
+import { storageKey } from './tenant'
 
 export type LocationKind = 'home' | 'work' | 'school' | 'other'
 
@@ -15,7 +16,7 @@ export const LOCATION_META: Record<LocationKind, { name: string; icon: string }>
   other: { name: 'Lieu', icon: 'pin' },
 }
 
-const KEY = 'maillage:favorites:v1'
+const KEY = storageKey('favorites:v1')
 
 function read(): Favorites {
   try {

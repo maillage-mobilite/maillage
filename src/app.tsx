@@ -9,17 +9,19 @@ import { useFavorites } from './store'
 import { Explore, PlaceView, RouteView } from './views/explore'
 import { TripView, TripState, initialTrip } from './views/trip'
 import { AlertsView, FaresView, MeView, SourcesView } from './views/more'
+import { TENANT, storageKey } from './tenant'
+import { TenantPicker } from './views/tenants'
 
 type Tab = 'explore' | 'trip' | 'alerts' | 'me'
 type Detail = { kind: 'place'; id: number } | { kind: 'route'; id: number; from?: number; dir?: number } | { kind: 'sources' } | { kind: 'fares' }
 type Snap = 'peek' | 'half' | 'full'
-type Pos = { lat: number; lon: number; simulated: boolean; reason?: string }
+type Pos = { lat: number; lon: number; simulated: boolean; reason?: string; at?: string }
 
 const isDesktop = () => window.matchMedia('(min-width: 900px)').matches
 
 type MapKey = Kind | 'gares'
 const ALL_KINDS: MapKey[] = ['urbain', 'tad', 'scolaire', 'region', 'gares']
-const KINDS_KEY = 'maillage:map-kinds:v2'
+const KINDS_KEY = storageKey('map-kinds:v2')
 
 /** Types de lignes affichés sur la carte, mémorisés sur l'appareil. */
 function useMapKinds() {
@@ -38,7 +40,8 @@ function useMapKinds() {
 
 /** Filtre de la carte : réseau local (urbain, TAD, scolaire) et cars Région. */
 function MapFilters({ net, kinds, toggle, setGroup }: { net: Network; kinds: MapKey[]; toggle: (k: MapKey) => void; setGroup: (g: MapKey[], on: boolean) => void }) {
-  const local: Kind[] = ['urbain', 'tad', 'scolaire']
+  const has = (k: Kind) => net.routes.some(r => r.kind === k)
+  const local = (['urbain', 'tad', 'scolaire'] as Kind[]).filter(has)
   const labels: Record<MapKey, string> = { urbain: 'Urbain', tad: 'TAD', scolaire: 'Scolaire', region: 'Région', train: 'Trains', gares: 'Trains' }
   const swatch = (k: MapKey) => (k === 'gares' ? '#1e3a8a' : net.routes.find(r => r.kind === k)?.color ?? '#888')
   const allLocal = local.every(k => kinds.includes(k))
@@ -55,7 +58,7 @@ function MapFilters({ net, kinds, toggle, setGroup }: { net: Network; kinds: Map
           title={allLocal ? `Masquer tout le réseau ${net.tenant.name}` : `Afficher tout le réseau ${net.tenant.name}`}>{net.tenant.name}</button>
         {local.map(chip)}
       </div>
-      <div class="filter-group">{chip('region')}{net.stations.length > 0 && chip('gares')}</div>
+      {(has('region') || net.stations.length > 0) && <div class="filter-group">{has('region') && chip('region')}{net.stations.length > 0 && chip('gares')}</div>}
     </div>
   )
 }
@@ -63,7 +66,8 @@ function MapFilters({ net, kinds, toggle, setGroup }: { net: Network; kinds: Map
 export function App() {
   const [net, setNet] = useState<Network | null>(null)
   const [error, setError] = useState<string | null>(null)
-  useEffect(() => { loadNetwork().then(setNet).catch(e => setError(String(e.message ?? e))) }, [])
+  useEffect(() => { if (TENANT) loadNetwork().then(setNet).catch(e => setError(String(e.message ?? e))) }, [])
+  if (!TENANT) return <TenantPicker />
   if (error) return <div class="splash"><strong>Impossible de charger les données</strong><p>{error}</p></div>
   if (!net) return <div class="splash"><div class="spinner" /><p>Chargement du réseau…</p></div>
   return <Shell net={net} />
@@ -73,18 +77,26 @@ function Shell({ net }: { net: Network }) {
   const [now, setNow] = useState(parisNow())
   useEffect(() => { const t = setInterval(() => setNow(parisNow()), 30000); return () => clearInterval(t) }, [])
 
-  // position : réelle si disponible et sur le territoire, sinon simulée à la gare routière
-  const hub = useMemo(() => net.places.filter(p => /gare rout/i.test(p.name)).sort((a, b) => b.feeds.length - a.feeds.length)[0], [net])
-  const [pos, setPos] = useState<Pos>({ lat: hub.lat, lon: hub.lon, simulated: true, reason: 'Localisation en attente' })
+  // position : réelle si disponible et sur le territoire, sinon simulée au pôle principal (configuration du territoire)
+  const hub = useMemo(() => {
+    const d = net.tenant.default_place
+    if (d) {
+      const p = net.places.reduce((a, b) => (distance(d.lat, d.lon, b.lat, b.lon) < distance(d.lat, d.lon, a.lat, a.lon) ? b : a))
+      return { lat: p.lat, lon: p.lon, at: d.name }
+    }
+    const p = net.places.filter(p => /gare rout/i.test(p.name)).sort((a, b) => b.feeds.length - a.feeds.length)[0] ?? net.places[0]
+    return { lat: p.lat, lon: p.lon, at: p.name }
+  }, [net])
+  const [pos, setPos] = useState<Pos>({ ...hub, simulated: true, reason: 'Localisation en attente' })
   const locate = () => {
     if (!('geolocation' in navigator)) { setPos(p => ({ ...p, reason: 'Géolocalisation indisponible' })); return }
     navigator.geolocation.getCurrentPosition(
       g => {
         const { latitude: lat, longitude: lon } = g.coords
-        if (distance(lat, lon, net.tenant.center[1], net.tenant.center[0]) > 25000) setPos({ lat: hub.lat, lon: hub.lon, simulated: true, reason: 'Vous êtes hors du territoire' })
+        if (distance(lat, lon, net.tenant.center[1], net.tenant.center[0]) > 25000) setPos({ ...hub, simulated: true, reason: 'Vous êtes hors du territoire' })
         else { setPos({ lat, lon, simulated: false }); setFocus({ lat, lon, zoom: 15.5, key: Date.now() }) }
       },
-      () => setPos({ lat: hub.lat, lon: hub.lon, simulated: true, reason: 'Localisation refusée' }),
+      () => setPos({ ...hub, simulated: true, reason: 'Localisation refusée' }),
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
     )
   }

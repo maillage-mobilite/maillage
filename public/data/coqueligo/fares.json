@@ -2,7 +2,7 @@
   "source": "Portail Informations Voyageurs du réseau (Matawan 2clock), rubrique Tarifs",
   "source_url": "https://annonay-ra.plateforme-2cloud.com/2clock/titres-abonnements",
   "retrieved": "2026-11-13",
-  "note": "Relevé d'une page publique. À remplacer par un flux GTFS-Fares v2 publié par la régie.",
+  "note": "Relevé d'une page publique. À remplacer par un flux GTFS-Fares v2 publié par la régie. Les tarifs affichés sur coqueligo.fr (2025) ne sont plus à jour.",
   "fares": [
     {
       "category": "ticket",

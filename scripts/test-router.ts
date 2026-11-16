@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { parseNetwork, fmtHM, departures, addDays, distance, trainPasses, stationLabel } from '../src/net'
 import { plan, planArriveBy, Point } from '../src/router'
 
-const net = parseNetwork(JSON.parse(readFileSync(new URL('../public/data/network.json', import.meta.url), 'utf8')))
+const net = parseNetwork(JSON.parse(readFileSync(new URL('../public/data/coqueligo/network.json', import.meta.url), 'utf8')))
 const place = (q: string): Point => {
   const p = net.places.find(p => p.name.toLowerCase().includes(q.toLowerCase()))
   if (!p) throw new Error('lieu introuvable : ' + q)

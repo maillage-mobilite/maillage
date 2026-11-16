@@ -7,6 +7,7 @@
 // - Bus : on découpe le tracé de la ligne (lines.geojson, recalé sur la voirie) entre l'arrêt de
 //   montée et l'arrêt de descente, au lieu de relier les arrêts en ligne droite.
 import { Network, distance } from './net'
+import { dataUrl } from './tenant'
 import type { Journey, Leg } from './router'
 
 type LngLat = [number, number]
@@ -102,7 +103,7 @@ let loading: Promise<void> | null = null
 
 /** Charge les tracés des lignes (même fichier que la carte, servi depuis le cache du navigateur). */
 export function loadShapes(): Promise<void> {
-  if (!loading) loading = fetch(`${import.meta.env.BASE_URL}data/lines.geojson`).then(r => r.json()).then(g => {
+  if (!loading) loading = fetch(dataUrl('lines.geojson')).then(r => r.json()).then(g => {
     shapes = new Map()
     for (const f of g.features) {
       if (f.geometry?.type !== 'LineString') continue

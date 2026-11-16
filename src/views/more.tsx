@@ -8,6 +8,8 @@ import type { Favorites } from '../store'
 
 const FIX_LABELS: Record<string, string> = {
   temps_de_parcours_negatif_corrige: 'temps de parcours négatifs corrigés',
+  couleur_ligne_ajoutee: 'couleurs de ligne ajoutées (absentes du flux)',
+  nom_de_ligne_ajoute: 'noms de ligne ajoutés (origine – terminus)',
   sequence_dupliquee_supprimee: 'séquences dupliquées supprimées',
   depart_avant_arrivee_corrige: 'départs avant arrivée corrigés',
   contraste_couleur_ligne_corrige: 'couleurs de texte corrigées (contraste)',
@@ -123,17 +125,19 @@ export function MeView({ net, fav, near, onPlace, onRoute, onSources, onFares, h
       <section>
         <h3 class="section-title">Services {net.tenant.name}</h3>
         {hasFares && <button class="row-btn" onClick={onFares}><Icon name="ticket" size={18} /> Tarifs et abonnements</button>}
-        <a class="row-btn" href={L.tickets} target="_blank" rel="noopener"><Icon name="ticket" size={18} /> Acheter un titre en ligne <Icon name="external" size={14} /></a>
-        <a class="row-btn" href={L.open_payment} target="_blank" rel="noopener"><Icon name="ticket" size={18} /> Payer par carte bancaire à bord (Open Payment) <Icon name="external" size={14} /></a>
-        <a class="row-btn" href={`tel:${L.phone.replace(/\s/g, '')}`}><Icon name="phone" size={18} /> Agence mobilité · {L.phone}</a>
-        <div class="muted small pad">{L.agency}</div>
-        <a class="row-btn" href={L.website} target="_blank" rel="noopener"><Icon name="external" size={18} /> Site officiel du réseau</a>
+        {L.tickets && <a class="row-btn" href={L.tickets} target="_blank" rel="noopener"><Icon name="ticket" size={18} /> Acheter un titre en ligne <Icon name="external" size={14} /></a>}
+        {L.open_payment && <a class="row-btn" href={L.open_payment} target="_blank" rel="noopener"><Icon name="ticket" size={18} /> Payer par carte bancaire à bord (Open Payment) <Icon name="external" size={14} /></a>}
+        {L.phone && <a class="row-btn" href={`tel:${L.phone.replace(/\s/g, '')}`}><Icon name="phone" size={18} /> Agence mobilité · {L.phone}</a>}
+        {L.agency && <div class="muted small pad">{L.agency}</div>}
+        {L.website && <a class="row-btn" href={L.website} target="_blank" rel="noopener"><Icon name="external" size={18} /> Site officiel {net.tenant.territory}</a>}
+        {L.operator && <a class="row-btn" href={L.operator} target="_blank" rel="noopener"><Icon name="external" size={18} /> Site de l'exploitant</a>}
       </section>
       <section>
         <h3 class="section-title">Données</h3>
         <button class="row-btn" onClick={onSources}><Icon name="data" size={18} /> Sources et qualité des données</button>
+        <a class="row-btn" href="./"><Icon name="pin" size={18} /> Changer de territoire</a>
       </section>
-      <p class="notice">Démonstrateur indépendant et non officiel, construit uniquement à partir de données ouvertes. Il n'est pas affilié à {net.tenant.name} ni à {net.tenant.territory}.</p>
+      <p class="notice">Démonstrateur indépendant et non officiel, construit uniquement à partir de données ouvertes. Il n'est affilié ni au réseau de transport ni à {net.tenant.territory}.</p>
     </div>
   )
 }
@@ -197,14 +201,9 @@ export function SourcesView({ net, onBack }: { net: Network; onBack: () => void 
       ))}
       <div class="card static">
         <strong>Non disponibles en open data</strong>
-        <ul class="small">
-          <li>Temps réel (géolocalisation des bus) : existe chez le prestataire, non publié.</li>
-          <li>Perturbations : aucun flux.</li>
-          <li>Tarifs : uniquement dans des documents PDF.</li>
-          <li>Accessibilité des arrêts : non renseignée.</li>
-        </ul>
+        <ul class="small">{(net.tenant.data_gaps ?? []).map(g => <li key={g}>{g}</li>)}</ul>
       </div>
-      <p class="small muted">Fond de carte © contributeurs OpenStreetMap (OpenFreeMap). Adresses : Base Adresse Nationale. Cars Région : agrégat Oùra (ODbL). Gares et horaires des trains : SNCF Open Data (ODbL).</p>
+      <p class="small muted">Fond de carte © contributeurs OpenStreetMap (OpenFreeMap). Adresses : Base Adresse Nationale. {net.tenant.credits}</p>
     </div>
   )
 }
@@ -226,11 +225,11 @@ export function FaresView({ net, fares, onBack }: { net: Network; fares: Fares; 
   return (
     <div class="sheet-body">
       <Header title="Tarifs" onBack={onBack} sub={`Réseau ${net.tenant.name} · relevé le ${new Date(fares.retrieved + 'T12:00:00Z').toLocaleDateString('fr-FR')}`} />
-      <p class="notice"><Icon name="info" size={16} /> Paiement par carte bancaire sans contact possible directement à bord (Open Payment). Les cars Région ont leur propre tarification.</p>
+      {net.tenant.fares_note && <p class="notice"><Icon name="info" size={16} /> {net.tenant.fares_note}</p>}
       {section('ticket', 'Tickets')}
       {section('abonnement', 'Abonnements')}
-      <a class="btn primary block" href={net.tenant.links.tickets} target="_blank" rel="noopener">Acheter en ligne <Icon name="external" size={14} /></a>
-      <p class="small muted">Source : <a href={fares.source_url} target="_blank" rel="noopener">{fares.source}</a>. {fares.note} Les tarifs affichés sur coqueligo.fr (2025) ne sont plus à jour.</p>
+      {net.tenant.links.tickets && <a class="btn primary block" href={net.tenant.links.tickets} target="_blank" rel="noopener">Acheter en ligne <Icon name="external" size={14} /></a>}
+      <p class="small muted">Source : <a href={fares.source_url} target="_blank" rel="noopener">{fares.source}</a>. {fares.note}</p>
     </div>
   )
 }

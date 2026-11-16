@@ -8,6 +8,7 @@ import { distinctRoutes, stationLabel, type Kind, type Network } from './net'
 import type { Journey } from './router'
 import { Icon, Pill } from './ui'
 import { loadShapes, rideGeometry } from './geometry'
+import { dataUrl } from './tenant'
 
 export interface MapProps {
   net: Network
@@ -128,9 +129,9 @@ export function MapView(props: MapProps) {
     map.current = m
     if (import.meta.env.DEV) (window as any).__map = m
     m.on('load', () => {
-      m.addSource('lines', { type: 'geojson', data: `${import.meta.env.BASE_URL}data/lines.geojson` })
+      m.addSource('lines', { type: 'geojson', data: dataUrl('lines.geojson') })
       // portions où l'aller et le retour d'une ligne ne suivent pas le même chemin (calculées par le pipeline)
-      m.addSource('oneway', { type: 'geojson', data: `${import.meta.env.BASE_URL}data/oneway.geojson` })
+      m.addSource('oneway', { type: 'geojson', data: dataUrl('oneway.geojson') })
       m.addSource('places', {
         type: 'geojson',
         data: {
