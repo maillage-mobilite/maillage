@@ -25,10 +25,21 @@ Ajouter un compte (le mot de passe est demandé deux fois au clavier, rien n'est
 ssh -t -i ~/.ssh/id_ed25519_ovh_almanach ubuntu@vps-4075b317.vps.ovh.net 'h=$(openssl passwd -apr1) && echo "demo:$h" | sudo tee -a /srv/sites/maillage/private/htpasswd >/dev/null && echo "Compte ajouté"'
 ```
 
-nginx relit le fichier à chaque requête : pas de redémarrage. Retirer un compte :
+nginx relit le fichier à chaque requête : pas de redémarrage.
+
+Le fichier est monté seul dans le conteneur : Docker suit son inode. Il faut donc le **réécrire sur place**
+(`cat … >`), jamais le remplacer (`sed -i`, éditeur, `mv`), sinon le conteneur garde l'ancienne version.
+
+Changer le mot de passe d'un compte (ici `demo`) :
 
 ```bash
-ssh -i ~/.ssh/id_ed25519_ovh_almanach ubuntu@vps-4075b317.vps.ovh.net "sudo sed -i '/^demo:/d' /srv/sites/maillage/private/htpasswd"
+ssh -t -i ~/.ssh/id_ed25519_ovh_almanach ubuntu@vps-4075b317.vps.ovh.net 'F=/srv/sites/maillage/private/htpasswd; h=$(openssl passwd -apr1) && sudo install -m 600 /dev/null $F.new && { sudo grep -v "^demo:" $F; printf "demo:%s\n" "$h"; } | sudo tee $F.new >/dev/null && sudo sh -c "cat $F.new > $F && rm $F.new" && echo "Mot de passe changé"'
+```
+
+Retirer un compte :
+
+```bash
+ssh -i ~/.ssh/id_ed25519_ovh_almanach ubuntu@vps-4075b317.vps.ovh.net 'F=/srv/sites/maillage/private/htpasswd; sudo sh -c "grep -v \"^demo:\" $F > $F.new; cat $F.new > $F && rm $F.new" && echo "Compte retiré"'
 ```
 
 ## Limites de l'accès privé
