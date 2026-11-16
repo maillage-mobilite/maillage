@@ -11,7 +11,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test:router": "vite-node scripts/test-router.ts"
+    "test:router": "vite-node scripts/test-router.ts",
+    "check:data": "python3 -I pipeline/check_data.py public/data"
   },
   "dependencies": {
     "maplibre-gl": "^5.24.1",

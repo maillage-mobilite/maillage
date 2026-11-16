@@ -12,7 +12,7 @@ SSH=(ssh -i "$KEY" -o BatchMode=yes "$HOST")
 
 ( cd "$SRC" && npm run build )
 
-"${SSH[@]}" "sudo mkdir -p $DIR/site $DIR/private && sudo chown ubuntu:ubuntu $DIR $DIR/site"
+"${SSH[@]}" "sudo mkdir -p $DIR/site $DIR/private $DIR/logs && sudo chown ubuntu:ubuntu $DIR $DIR/site"
 rsync -az --delete -e "ssh -i $KEY -o BatchMode=yes" "$SRC/dist/" "$HOST:$DIR/site/"
 
 if [[ "${1:-}" == "--config" ]]; then

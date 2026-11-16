@@ -56,3 +56,22 @@ Seuls `/widget.html`, ses fichiers `assets/widget-*` et `assets/modulepreload-po
 demande toujours un compte. Pour qu'une autre commune puisse intégrer l'encart, ajouter son domaine à la
 directive `frame-ancestors` de `nginx.conf` puis lancer `./deploy/deploy-vps.sh --config`.
 Code à coller dans le site de la commune : `encart-ornex.html` (exemple pour Ornex).
+
+## Mesure d'usage (sans IP ni cookie)
+
+nginx n'écrit qu'un journal : `/srv/sites/maillage/logs/usage.log`, une ligne par affichage de l'encart et par
+ouverture de l'application (date, événement, compte, site d'origine, commune, provenance, type d'appareil).
+Ni adresse IP, ni cookie, ni robots. On compte donc des affichages, pas des personnes.
+
+```bash
+./deploy/stats.sh        # 30 derniers jours
+./deploy/stats.sh 7      # 7 derniers jours
+```
+
+## Alerte d'expiration des données
+
+`npm run check:data` contrôle, pour chaque territoire, la fin de validité des flux GTFS, la fin de la fenêtre
+d'horaires précalculée et la publication d'une nouvelle version sur data.gouv.fr (alerte à 21 jours).
+Une tâche planifiée GitLab (`.gitlab-ci.yml` à la racine du dépôt) le lance chaque matin : en cas d'alerte,
+elle échoue et GitLab envoie un e-mail. Remède : `npm run data`, vérifier, puis `./deploy/deploy-vps.sh`.
+Après l'expiration, l'encart affiche « horaires en cours de mise à jour » au lieu de « aucun départ ».

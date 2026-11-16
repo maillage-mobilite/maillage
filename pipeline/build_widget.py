@@ -67,6 +67,10 @@ def main():
         "name": args.name,
         "window_start": net["window_start"],
         "window_days": net["window_days"],
+        # fin de validité des flux utilisés par l'encart : au-delà, l'encart annonce une mise à jour
+        # au lieu d'afficher « aucun départ »
+        "valid_until": min((f["end"] for f in net["feeds"] if f.get("end") and f["kind"] in {r["kind"] for r in routes}), default=None),
+        "operator_url": (net["tenant"].get("links") or {}).get("operator"),
         "routes": routes,
         "services": services,
         "stops": [{"name": wanted[pl], "lat": places[pl][1], "lon": places[pl][2], "deps": out_stops[pl]} for pl in wanted],

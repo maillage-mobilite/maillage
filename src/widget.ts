@@ -7,7 +7,7 @@ import './widget.css'
 
 interface WRoute { short: string; long: string; color: string; text: string; kind: string }
 interface WStop { name: string; lat: number; lon: number; deps: [number, number, number, string][] }
-interface WData { name: string; generated_at: string; window_start: string; window_days: number; routes: WRoute[]; services: string[]; stops: WStop[] }
+interface WData { name: string; generated_at: string; window_start: string; window_days: number; valid_until?: string | null; operator_url?: string | null; routes: WRoute[]; services: string[]; stops: WStop[] }
 
 const params = new URLSearchParams(location.search)
 const slug = (v: string | null, d: string) => (v && /^[a-z0-9-]+$/.test(v) ? v : d)
@@ -16,7 +16,7 @@ const commune = slug(params.get('commune'), 'ornex')
 const lien = (() => {
   const v = params.get('lien')
   try { if (v && /^https:\/\//.test(v)) return new URL(v).toString() } catch { /* adresse invalide */ }
-  return new URL(`./?reseau=${reseau}`, location.href).toString()
+  return new URL(`./?reseau=${reseau}&src=encart`, location.href).toString()
 })()
 
 const root = document.getElementById('widget')!
@@ -55,6 +55,15 @@ function when(wait: number, at: number) {
 
 function render(data: WData) {
   const now = parisNow()
+  // données expirées (flux GTFS échu ou fenêtre précalculée dépassée) : on ne fait pas croire qu'il n'y a pas de bus
+  if ((data.valid_until && now.date > data.valid_until) || dayIndex(data.window_start, now.date) >= data.window_days) {
+    root.innerHTML = `
+      <header class="w-top"><h2>Prochains départs à ${esc(data.name)}</h2></header>
+      <p class="w-muted">Les horaires sont en cours de mise à jour.${data.operator_url ? ' En attendant, consultez le site du transporteur.' : ''}</p>
+      ${data.operator_url && /^https:\/\//.test(data.operator_url) ? `<footer class="w-foot"><a class="w-link" href="${esc(data.operator_url)}" target="_blank" rel="noopener">Site du transporteur<span class="sr"> (nouvel onglet)</span> ↗</a></footer>` : ''}`
+    root.removeAttribute('aria-busy')
+    return
+  }
   const stops = data.stops.map(stop => {
     const groups = new Map<string, { route: number; head: string; next: { wait: number; at: number }[] }>()
     for (const d of upcoming(data, stop, now)) {
