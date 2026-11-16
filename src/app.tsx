@@ -11,6 +11,7 @@ import { TripView, TripState, initialTrip } from './views/trip'
 import { AlertsView, FaresView, MeView, SourcesView } from './views/more'
 import { TENANT, storageKey } from './tenant'
 import { TenantPicker } from './views/tenants'
+import { PoiBadge } from './poiIcons'
 
 type Tab = 'explore' | 'trip' | 'alerts' | 'me'
 type Detail = { kind: 'place'; id: number } | { kind: 'route'; id: number; from?: number; dir?: number } | { kind: 'sources' } | { kind: 'fares' }
@@ -40,16 +41,24 @@ function useMapKinds() {
 }
 
 /** Filtre de la carte : réseau local (urbain, TAD, scolaire) et cars Région. */
-function MapFilters({ net, pois, kinds, toggle, setGroup }: { net: Network; pois: Pois | null; kinds: MapKey[]; toggle: (k: MapKey) => void; setGroup: (g: MapKey[], on: boolean) => void }) {
+function MapFilters({ net, pois, kinds, toggle, setGroup, legendOpen, onLegend }: {
+  net: Network; pois: Pois | null; kinds: MapKey[]; toggle: (k: MapKey) => void; setGroup: (g: MapKey[], on: boolean) => void
+  /** Puce « Lieux » : ouvre la légende des catégories (qui sert aussi de filtre). */
+  legendOpen: boolean; onLegend: () => void
+}) {
   const has = (k: Kind) => net.routes.some(r => r.kind === k)
   const local = (['urbain', 'tad', 'scolaire'] as Kind[]).filter(has)
   const labels: Record<MapKey, string> = { urbain: 'Urbain', tad: 'TAD', scolaire: 'Scolaire', region: 'Région', train: 'Trains', gares: 'Trains', lieux: 'Lieux' }
   const swatch = (k: MapKey) => (k === 'gares' ? '#1e3a8a' : net.routes.find(r => r.kind === k)?.color ?? '#888')
   const allLocal = local.every(k => kinds.includes(k))
-  const chip = (k: MapKey) => (
+  const chip = (k: MapKey) => k === 'lieux' ? (
+    <button key={k} class={`map-chip${kinds.includes(k) ? ' on' : ''}`} aria-expanded={legendOpen} aria-haspopup="dialog" onClick={onLegend}
+      title="Lieux utiles : légende et choix des catégories">
+      <span class="swatch swatch-lieux" aria-hidden="true" />Lieux<span class="chip-caret" aria-hidden="true">▾</span>
+    </button>
+  ) : (
     <button key={k} class={`map-chip${kinds.includes(k) ? ' on' : ''}`} aria-pressed={kinds.includes(k)} onClick={() => toggle(k)}
-      title={k === 'lieux' ? (kinds.includes(k) ? 'Masquer les lieux utiles (mairies, écoles, santé…)' : 'Afficher les lieux utiles (mairies, écoles, santé…)')
-        : kinds.includes(k) ? `Masquer les lignes ${labels[k].toLowerCase()}` : `Afficher les lignes ${labels[k].toLowerCase()}`}>
+      title={kinds.includes(k) ? `Masquer les lignes ${labels[k].toLowerCase()}` : `Afficher les lignes ${labels[k].toLowerCase()}`}>
       <span class={`swatch swatch-${k}`} style={{ background: swatch(k) }} aria-hidden="true" />{labels[k]}
     </button>
   )
@@ -109,6 +118,12 @@ function Shell({ net }: { net: Network }) {
   const { fav, toggle, saveLocation, removeLocation } = useFavorites()
   const mapKinds = useMapKinds()
   const pois = usePois()
+  const [legendOpen, setLegendOpen] = useState(false)
+  const POI_HIDDEN_KEY = storageKey('poi-hidden')
+  const [poiHidden, setPoiHiddenState] = useState<string[]>(() => {
+    try { const v = JSON.parse(localStorage.getItem(POI_HIDDEN_KEY) || '[]'); return Array.isArray(v) ? v : [] } catch { return [] }
+  })
+  const setPoiHidden = (v: string[]) => { setPoiHiddenState(v); try { localStorage.setItem(POI_HIDDEN_KEY, JSON.stringify(v)) } catch { /* stockage indisponible */ } }
   const [basemap, setBasemapState] = useState<Basemap>(() => {
     try { const v = localStorage.getItem('maillage:basemap'); if (v === 'plan' || v === 'satellite' || v === 'velo') return v } catch { /* stockage indisponible */ }
     return 'plan'
@@ -200,9 +215,13 @@ function Shell({ net }: { net: Network }) {
     <div class={`shell${desktop ? ' desktop' : ''}${!desktop && snap === 'full' ? ' sheet-full' : ''}`}>
       {!mapReady && <div class="map-loading" role="status"><div class="spinner" /> Chargement de la carte…</div>}
       <MapView net={net} basemap={basemap} onReady={() => setMapReady(true)} user={pos} highlightRoute={highlightRoute} previewRoute={previewRoute} journey={journey} focus={focus} padding={padding} onPlace={openPlace} onRoute={openRoute} kinds={mapKinds.kinds}
-        pois={pois} onPoi={p => goLocation({ lat: p.lat, lon: p.lon, name: p.name.toLowerCase().includes(p.commune.toLowerCase()) ? p.name : `${p.name}, ${p.commune}` })} />
+        pois={pois} poiHidden={poiHidden} onPoi={p => goLocation({ lat: p.lat, lon: p.lon, name: p.name.toLowerCase().includes(p.commune.toLowerCase()) ? p.name : `${p.name}, ${p.commune}` })} />
       {previewRoute != null && previewRoute !== highlightRoute && <RoutePreviewCard net={net} route={previewRoute} now={now} />}
-      <MapFilters net={net} pois={pois} {...mapKinds} />
+      <MapFilters net={net} pois={pois} {...mapKinds} legendOpen={legendOpen} onLegend={() => { setLegendOpen(o => !o); setBasemapOpen(false) }} />
+      {legendOpen && pois && (
+        <PoiLegend pois={pois} shown={mapKinds.kinds.includes('lieux')} onShown={() => mapKinds.toggle('lieux')}
+          hidden={poiHidden} setHidden={setPoiHidden} onClose={() => setLegendOpen(false)} />
+      )}
       <div class="topbar">
         <span class="brand"><span class="brand-mark" aria-hidden="true" />Maillage<em>démo · {net.tenant.name}</em></span>
         <span class="top-actions">
@@ -235,6 +254,45 @@ function Shell({ net }: { net: Network }) {
       </nav>
     </div>
     </RoutePreview.Provider>
+  )
+}
+
+/** Légende des lieux utiles : pictogramme et couleur de chaque catégorie, avec choix des catégories affichées. */
+function PoiLegend({ pois, shown, onShown, hidden, setHidden, onClose }: {
+  pois: Pois; shown: boolean; onShown: () => void; hidden: string[]; setHidden: (v: string[]) => void; onClose: () => void
+}) {
+  const count = useMemo(() => { const c: Record<string, number> = {}; for (const p of pois.pois) c[p.cat] = (c[p.cat] ?? 0) + 1; return c }, [pois])
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>('input, button')?.focus()
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [])
+  return (
+    <div class="poi-legend" role="dialog" aria-label="Lieux sur la carte" ref={ref}>
+      <div class="poi-legend-head">
+        <label class="toggle"><input type="checkbox" checked={shown} onChange={onShown} /> <strong>Lieux sur la carte</strong></label>
+        <button class="tip-close" onClick={onClose} aria-label="Fermer la légende"><Icon name="close" size={16} /></button>
+      </div>
+      <ul class={`poi-legend-list${shown ? '' : ' off'}`}>
+        {pois.categories.map(c => {
+          const on = !hidden.includes(c.id)
+          return (
+            <li key={c.id}>
+              <button role="checkbox" aria-checked={on} disabled={!shown} class={on ? '' : 'hidden-cat'}
+                onClick={() => setHidden(on ? [...hidden, c.id] : hidden.filter(x => x !== c.id))}>
+                <PoiBadge cat={c.id} color={c.color} size={24} />
+                <span class="poi-legend-label">{c.label}</span>
+                <span class="poi-legend-n">{count[c.id] ?? 0}</span>
+                <span class="poi-legend-check" aria-hidden="true">{on ? <Icon name="check" size={16} /> : null}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      <p class="tip-src">Visibles en zoomant sur un quartier. Touchez un lieu pour ses horaires et l’itinéraire. Données OpenStreetMap.</p>
+    </div>
   )
 }
 

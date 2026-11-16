@@ -12,6 +12,14 @@
     "osrm_url": "https://router.project-osrm.org",
     "note": "Le flux TPG ne publie aucun tracé : les lignes sont recalées sur les routes (serveur de démonstration OSRM)."
   },
+  "match_to_roads": {
+    "enabled": true, "osrm_url": "http://localhost:5055", "kinds": ["urbain", "region"],
+    "note": "Appariement fin sur la chaussée : moteur OSRM local, profil bus (pipeline/osrm/osrm.sh), extrait Rhône-Alpes : côté suisse, le recalage grossier reste. Ignoré si le moteur n'est pas lancé."
+  },
+  "rail_route": {
+    "enabled": true, "osrm_url": "http://localhost:5056",
+    "note": "Moteur OSRM local, profil rail (extrait Rhône-Alpes : les portions suisses restent de gare en gare). Ignoré s'il n'est pas lancé."
+  },
   "rail_stations": {
     "name": "Gares de voyageurs (SNCF Open Data)",
     "url": "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/gares-de-voyageurs/exports/json",

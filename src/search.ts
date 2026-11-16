@@ -10,6 +10,8 @@ export interface Suggestion {
   id?: number
   /** Couleur de la catégorie (lieux). */
   color?: string
+  /** Catégorie (lieux). */
+  cat?: string
   /** Pôle desservi seulement par des trains (gare suisse, Lausanne…). */
   rail?: boolean
 }
@@ -63,7 +65,7 @@ export function searchPois(pois: Pois | null, q: string, near?: { lat: number; l
     if (!words.every(w => canon(`${p.name} ${p.type} ${p.commune}`).includes(w))) continue
     const d = near ? distance(near.lat, near.lon, p.lat, p.lon) : 0
     const score = (n.startsWith(nq) ? 0 : words.every(w => n.includes(w)) ? 0.5 : 1) + d / 10000
-    out.push({ kind: 'poi', label: p.name, detail: `${p.type} · ${p.commune}`, lat: p.lat, lon: p.lon, id: p.i, color: color.get(p.cat), score })
+    out.push({ kind: 'poi', label: p.name, detail: `${p.type} · ${p.commune}`, lat: p.lat, lon: p.lon, id: p.i, color: color.get(p.cat), cat: p.cat, score })
   }
   return out.sort((a, b) => a.score - b.score).slice(0, 4)
 }

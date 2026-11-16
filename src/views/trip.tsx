@@ -9,6 +9,7 @@ import { RtNote, TrainRowView, connectingTrains } from '../trains'
 import { useTrainRealtime } from '../realtime'
 import { refineWalks } from '../geometry'
 import { LOCATION_META, type SavedLocation } from '../store'
+import { PoiBadge } from '../poiIcons'
 import { distance, stationLabel, usePois } from '../net'
 
 type Now = { date: string; sec: number }
@@ -77,7 +78,7 @@ export function PlaceInput({ net, label, value, placeholder, onPick, near, autoF
     }
     sugg.forEach((s, k) => options.push({ key: `g${k}`, select: () => pick(s), body: <>
       {s.kind === 'poi'
-        ? <span class="poi-icon" style={{ color: s.color }}><Icon name="pin" size={16} /></span>
+        ? <PoiBadge cat={s.cat ?? ''} color={s.color} size={20} />
         : <Icon name={s.kind === 'address' ? 'map' : s.kind === 'station' || s.rail ? 'train' : 'bus'} size={16} />}
       <span><strong>{s.label}</strong><small>{s.kind === 'address' ? `Adresse · ${s.detail}` : s.detail}</small></span>
     </> }))

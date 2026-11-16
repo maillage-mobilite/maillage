@@ -9,6 +9,7 @@ import type { Journey } from './router'
 import { Icon, Pill } from './ui'
 import { loadShapes, rideGeometry } from './geometry'
 import { dataUrl } from './tenant'
+import { PoiBadge, poiImage } from './poiIcons'
 
 export interface MapProps {
   net: Network
@@ -31,6 +32,8 @@ export interface MapProps {
   pois: Pois | null
   /** « Y aller » depuis la fiche d'un lieu. */
   onPoi: (p: Poi) => void
+  /** Catégories de lieux masquées (légende). */
+  poiHidden: string[]
 }
 
 interface HoverItem { route: number; from: string; to: string; both?: boolean }
@@ -195,16 +198,17 @@ export function MapView(props: MapProps) {
           'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-rotation-alignment': 'map', 'icon-keep-upright': false,
         },
         paint: {} })
-      // lieux utiles : sous les arrêts (prioritaires au clic), visibles à partir du zoom quartier
-      m.addLayer({ id: 'pois', type: 'circle', source: 'pois', minzoom: 13,
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 3, 16, 6],
-          'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 13, 1, 16, 2],
-        } })
+      // lieux utiles : pastille colorée à pictogramme par catégorie (poiIcons.tsx), sous les arrêts
+      // (prioritaires au clic), visibles à partir du zoom quartier
+      m.addLayer({ id: 'pois', type: 'symbol', source: 'pois', minzoom: 13,
+        layout: {
+          'icon-image': ['concat', 'poi-', ['get', 'cat']],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.55, 16, 0.85, 18, 1],
+          'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        },
+        paint: { 'icon-opacity': 1 } })
       m.addLayer({ id: 'pois-label', type: 'symbol', source: 'pois', minzoom: 15.5,
-        layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Italic'], 'text-size': 11.5, 'text-offset': [0, 0.9], 'text-anchor': 'top', 'text-optional': true, 'text-max-width': 9 },
+        layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Italic'], 'text-size': 11.5, 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-optional': true, 'text-max-width': 9 },
         paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 } })
       m.addLayer({ id: 'places', type: 'circle', source: 'places', minzoom: 11,
         filter: ['any', ['>=', ['zoom'], 13.5], ['==', ['get', 'core'], 1]],
@@ -314,8 +318,7 @@ export function MapView(props: MapProps) {
       m.setPaintProperty('lines-casing', 'line-opacity', r != null ? ['case', ['==', ['get', 'route'], r], 1, 0] : dim ? 0 : 0.9)
       m.setPaintProperty('places', 'circle-opacity', dim ? 0.3 : 1)
       m.setPaintProperty('places', 'circle-stroke-opacity', dim ? 0.3 : 1)
-      m.setPaintProperty('pois', 'circle-opacity', dim || r != null ? 0.35 : 1)
-      m.setPaintProperty('pois', 'circle-stroke-opacity', dim || r != null ? 0.35 : 1)
+      m.setPaintProperty('pois', 'icon-opacity', dim || r != null ? 0.35 : 1)
       m.setPaintProperty('lines', 'line-width', r == null
         ? ['interpolate', ['linear'], ['zoom'], 10, ['match', ['get', 'kind'], 'region', 0.8, 1.2], 15, ['match', ['get', 'kind'], 'region', 2.5, 4]]
         // le zoom doit rester au premier niveau de l'expression : la condition va dans chaque palier
@@ -357,14 +360,27 @@ export function MapView(props: MapProps) {
   // lieux utiles (chargés après la carte)
   useEffect(() => {
     whenReady(() => {
+      const m = map.current!
       const p = props.pois
       const color = new Map(p?.categories.map(c => [c.id, c.color]) ?? [])
-      ;(map.current!.getSource('pois') as GeoJSONSource).setData(p ? {
+      // une image par catégorie, avant les données (sinon MapLibre signale des images manquantes)
+      for (const c of p?.categories ?? []) if (!m.hasImage(`poi-${c.id}`)) m.addImage(`poi-${c.id}`, poiImage(c.id, c.color), { pixelRatio: 2 })
+      ;(m.getSource('pois') as GeoJSONSource).setData(p ? {
         type: 'FeatureCollection',
-        features: p.pois.map(x => ({ type: 'Feature', properties: { i: x.i, name: x.name, color: color.get(x.cat) ?? '#6b7280' }, geometry: { type: 'Point', coordinates: [x.lon, x.lat] } })),
+        features: p.pois.map(x => ({ type: 'Feature', properties: { i: x.i, name: x.name, cat: x.cat, color: color.get(x.cat) ?? '#6b7280' }, geometry: { type: 'Point', coordinates: [x.lon, x.lat] } })),
       } : EMPTY)
     })
   }, [props.pois])
+
+  // catégories de lieux masquées depuis la légende
+  useEffect(() => {
+    whenReady(() => {
+      const f: any = props.poiHidden.length ? ['!', ['in', ['get', 'cat'], ['literal', props.poiHidden]]] : null
+      map.current!.setFilter('pois', f)
+      map.current!.setFilter('pois-label', f)
+      setHover(h => (h?.poi != null ? null : h))
+    })
+  }, [props.poiHidden.join(',')])
 
   // lignes survolées mises en évidence
   useEffect(() => {
@@ -449,7 +465,7 @@ function LineTooltip({ net, pois, hover, onRoute, onPlace, onPoi, onClose }: {
         return (
           <div class="tip-poi">
             <div class="tip-station">
-              <span class="poi-icon" style={{ color: cat?.color }}><Icon name="pin" size={22} /></span>
+              <PoiBadge cat={p.cat} color={cat?.color} size={26} />
               <span class="tip-text"><strong>{p.name}</strong><span class="tip-od">{p.type} · {p.commune}</span></span>
             </div>
             {hover.pinned && (
