@@ -2,12 +2,18 @@
 
 Prototype web mobile-first de la Phase 0 (voir [../docs/roadmap.md](../docs/roadmap.md)). Il sert à montrer à une régie, à partir de **ses seules données ouvertes**, ce que pourrait être son service numérique voyageur.
 
+En ligne (accès privé) : https://maillage.tuatam.fr. **Mise à jour des horaires, moteurs OSRM, publication, encart, statistiques : voir [EXPLOITATION.md](EXPLOITATION.md).** Serveur et comptes : [deploy/README.md](deploy/README.md).
+
 > Démonstrateur indépendant et non officiel. Horaires **théoriques** uniquement. Il n'est affilié à aucun des réseaux présentés (CoqueliGO, Annonay Rhône Agglo, Pays de Gex Agglo, TPG).
 
 ## Démarrer
 
 ```bash
 npm install
+```
+
+```bash
+pipeline/osrm/osrm.sh start && pipeline/osrm/osrm.sh start-rail && pipeline/osrm/osrm.sh start-genf
 ```
 
 ```bash
@@ -18,13 +24,15 @@ npm run data
 npm run dev
 ```
 
+Les moteurs OSRM (Docker) recalent les tracés sur la chaussée et les voies ferrées ; à préparer une fois avec `prepare`, `prepare-rail` et `prepare-genf` (voir [EXPLOITATION.md](EXPLOITATION.md)). Sans eux, `npm run data` fonctionne, mais les tracés restent grossiers.
+
 Puis ouvrir http://localhost:5199 (de préférence en vue mobile) : la page d'accueil propose les territoires. Accès direct : `?reseau=coqueligo` ou `?reseau=paysdegex`.
 
 `npm run data` télécharge (avec repli automatique sur `curl` si le Python de python.org n'a pas ses certificats racine) les GTFS déclarés dans `pipeline/tenants/coqueligo.json` puis `pipeline/tenants/paysdegex.json` (un seul territoire : `npm run data:coqueligo` ou `npm run data:paysdegex`), dont l'agrégat régional Oùra (~110 Mo). Comptez quelques minutes la première fois. Les données générées couvrent **60 jours** à partir du jour d'exécution : il faut relancer la commande ensuite.
 
 **Trains suisses (Pays de Gex).** Le flux `train-ch` part de l'horaire national suisse (opentransportdata.swiss, ~400 Mo pour deux années d'horaires, dont 3,7 Go de `stop_times` décompressés). `pipeline/extract_gtfs.py` n'en garde, en une minute, que les trains qui passent à moins de 13 km de Genève (≈ 4 Mo). Le Léman Express, les TER et les trains SNCF sont écartés : ils figurent déjà dans le flux SNCF. Les sources sont retéléchargées au plus tous les 3 jours. Chaque année, avant le changement de service de décembre, il faut ajouter l'horaire de l'année suivante (`timetable-AAAA-gtfs2020`) dans `pipeline/tenants/paysdegex.json` ; l'alerte d'expiration (`npm run check:data`) le rappelle 21 jours avant. Les lignes suisses sont tracées de gare en gare (le moteur ferroviaire OSRM ne couvre que Rhône-Alpes).
 
-Autres commandes : `npm run test:router` (tests du calculateur sur les vraies données) et `npm run build` (version statique dans `dist/`, déployable sur n'importe quel hébergement de fichiers).
+Autres commandes : `npm run test:router` (tests du calculateur sur les vraies données), `npm run check:data` (alerte d'expiration des données), `npm run build` (version statique dans `dist/`, pages `index.html` et `widget.html`) et `./deploy/deploy-vps.sh` (publication sur maillage.tuatam.fr).
 
 ## Ce que montre la démo
 
@@ -45,6 +53,11 @@ Autres commandes : `npm run test:router` (tests du calculateur sur les vraies do
 | Réservation TAD | Formulaire en 1 écran, délai « veille avant 15 h » appliqué, confirmation. **Rien n'est envoyé.** | Config territoire |
 | Info trafic | Honnête : aucune perturbation publiée, alertes d'expiration des données réelles, exemple fictif étiqueté | Pipeline |
 | Mes trajets | Favoris sur l'appareil, liens billettique / Open Payment / agence, page « Sources et qualité » | Config + pipeline |
+| Territoires | Page d'accueil de choix du territoire ; CoqueliGO (Annonay) et Pays de Gex (Ornex) | Config par territoire |
+| Lieux utiles | Mairies, services, écoles, santé, culture et sport, commerces, déchetteries, aéroport : pastille à pictogramme par catégorie, **légende-filtre** (puce « Lieux ▾ »), fiche avec horaires, accessibilité, « Y aller », appel, site. Proposés dans la recherche (« mairie ornex », « piscine », « déchetterie ») | OpenStreetMap (ODbL) |
+| Recherche | Arrêts, gares, lieux et adresses ; **navigation au clavier** (flèches, Entrée, Échap) | GTFS, OSM, BAN |
+| Trains suisses (Pays de Gex) | Trains CFF dans les itinéraires (RE33, IR90, IC1…, pastille rouge), Cornavin réunissant bus, SNCF et CFF : Ornex → Lausanne par la 60 puis le RE33 | opentransportdata.swiss |
+| Encart pour un site de commune | Page `widget.html` (publique) : prochains départs aux arrêts de la commune, hauteur ajustée automatiquement, message clair après expiration des données | GTFS + pipeline |
 
 ## Architecture (volontairement minimale)
 
@@ -84,7 +97,7 @@ Aucun serveur applicatif : tout tourne dans le navigateur. C'est possible parce 
 | OpenTripPlanner 2 | CSA en TypeScript dans le navigateur | Pas de Java sur le poste, et inutile pour 15 000 connexions/jour. Pas de GTFS-RT ni de GTFS-Flex. |
 | React Native / Expo | Web (Preact + Vite) | Démo partageable par simple lien |
 | Tuiles PMTiles auto-hébergées | OpenFreeMap (gratuit, sans clé) | Rapidité de mise en place |
-| Recalage des tracés : instance OSRM/Valhalla auto-hébergée, ou pfaedle (outil de référence pour recaler des GTFS sur OSM) | Serveur de démonstration public OSRM (usage léger, 1 requête/s, cache) | Rapidité de mise en place |
+| Recalage des tracés : instance OSRM/Valhalla auto-hébergée, ou pfaedle (outil de référence pour recaler des GTFS sur OSM) | Trois moteurs OSRM locaux (Docker : bus et rail Rhône-Alpes, bus Genève) ; serveur public OSRM en repli pour les portions hors extrait | Les moteurs tournent sur le poste, pas sur le serveur |
 | Tracés réels des trajets | Lignes droites d'arrêt à arrêt sur l'itinéraire (les tracés de ligne, eux, sont réels) | Simplicité |
 
 ## Sécurité : alerte `npm audit` sur MapLibre 5
@@ -97,7 +110,8 @@ Aucun serveur applicatif : tout tourne dans le navigateur. C'est possible parce 
 ## Limites connues
 - **Lignes TER affichées par leur parcours** (« TER · Mâcon – Lyon Perrache – Valence ») : les codes du GTFS SNCF (K4, K64, P4…) ne sont pas les numéros affichés aux voyageurs (TER Auvergne-Rhône-Alpes numérote ses lignes 01 à 76) et un même code sert dans plusieurs régions. Vérifié le 13/11/2026 sur ter.sncf.com.
 - **Marche par les rues** : chaque étape à pied est recalculée après coup par le service OSRM piéton public de FOSSGIS (coordonnées envoyées à ce tiers ; en production, un moteur hébergé). Le calcul lui-même choisit les correspondances sur une estimation à vol d'oiseau × 1,25 : une correspondance devenue trop juste par les rues est signalée, pas recalculée.
-- Seuls les **TER** sont intégrés au calcul d'itinéraire : les TGV, OUIGO et Intercités apparaissent dans les tableaux des gares, mais pas dans les itinéraires (billets et réservation différents).
+- Côté SNCF, seuls les **TER** sont intégrés au calcul d'itinéraire : les TGV, OUIGO et Intercités apparaissent dans les tableaux des gares, mais pas dans les itinéraires (billets et réservation différents). Au Pays de Gex s'y ajoutent les **trains suisses** (CFF), sans temps réel et absents des tableaux de gare.
+- **Tracés hors extrait OSM** : trains suisses et portions suisses des TER tracés de gare en gare ; à l'aéroport de Genève, la boucle de demi-tour de la ligne 66 est déduite du calcul d'itinéraire (les TPG ne publient aucun tracé).
 - **Temps réel des trains** (GTFS-RT SNCF via transport.data.gouv.fr) : retards, suppressions et arrêts supprimés dans les tableaux de gare et les correspondances, rafraîchis chaque minute tant qu'ils sont affichés. Le flux national pèse ~900 Ko : en production, un serveur le filtrerait sur les gares du réseau. Pas encore appliqué aux trajets TER dans le détail d'un itinéraire.
 - Le fichier `network.json` passe à ~770 Ko avec les trains, dont 2 154 passages pour Lyon Part-Dieu seule. On pourrait le réduire en limitant Lyon aux TER.
 - Les tracés recalés sur la voirie sont **probables, pas certains** : le trajet réel d'un car scolaire ou d'un TAD peut différer. À faire valider par le réseau, idéalement en lui proposant de publier ces tracés dans ses GTFS.

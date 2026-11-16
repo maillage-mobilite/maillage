@@ -284,10 +284,16 @@ def deviations(points, line, cell=60.0):
         out.append(best if best < 1e9 else cell * 2)
     return out
 
-def drop_short_spurs(coords, max_leg_m=120.0, back_m=25.0):
+def drop_short_spurs(coords, stops=(), max_leg_m=120.0, back_m=25.0, stop_m=35.0):
     """Retire les éperons : la ligne part, fait demi-tour et revient à moins de back_m de son point de départ
-    en moins de max_leg_m (accès à un arrêt placé hors chaussée, impasse). Répété jusqu'à stabilité."""
+    en moins de max_leg_m (artefact de calcul). Un aller-retour qui passe à moins de stop_m d'un arrêt
+    desservi est réel (bus qui entre dans un village ou une impasse pour desservir l'arrêt) : il est gardé."""
     c = [tuple(x) for x in coords]
+    stops = [tuple(x) for x in stops]
+
+    def serves_stop(pts):
+        return any(haversine(q[1], q[0], p[1], p[0]) <= stop_m for p in pts for q in stops
+                   if abs(q[1] - p[1]) < 0.001)
     changed = True
     while changed and len(c) > 3:
         changed = False
@@ -299,7 +305,8 @@ def drop_short_spurs(coords, max_leg_m=120.0, back_m=25.0):
                 continue
             while j < len(c) and run <= 2 * max_leg_m:
                 run += haversine(c[j - 1][1], c[j - 1][0], c[j][1], c[j][0])
-                if haversine(a[1], a[0], c[j][1], c[j][0]) <= back_m and haversine(a[1], a[0], b[1], b[0]) > back_m:
+                if haversine(a[1], a[0], c[j][1], c[j][0]) <= back_m and haversine(a[1], a[0], b[1], b[0]) > back_m \
+                        and not serves_stop(c[i:j]):
                     # on reprend après le point de retour (voisin de a) : pas de micro-segment de raccord
                     c = c[:i] + c[j + 1:] if j + 1 < len(c) else c[:i] + [c[j]]
                     changed = True
@@ -311,7 +318,7 @@ def drop_short_spurs(coords, max_leg_m=120.0, back_m=25.0):
 
 
 def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, radius=25,
-                   min_ratio=0.8, max_ratio=1.25, min_matched=0.9):
+                   min_ratio=0.8, max_ratio=1.25, min_matched=0.9, drop_spurs=False):
     """
     Appariement cartographique (OSRM /match, profil bus) des tracés des types `kinds` :
     la géométrie renvoyée suit exactement la chaussée OSM. Par bloc de points :
@@ -420,7 +427,8 @@ def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, r
                 fixed.append(b_)
             new = fixed
         if len(new) >= 2:
-            new = drop_short_spurs(new)
+            if drop_spurs:
+                new = drop_short_spurs(new, f.get("_stops", ()))
             st["dev"] += deviations(resample(orig, 30.0), new)
             f["geometry"]["coordinates"] = simplify([(round(x, 5), round(y, 5)) for x, y in new], 3.5)
             f["properties"]["matched"] = 1
@@ -1236,7 +1244,7 @@ def main():
     match_cfg = cfg.get("match_to_roads")
     if match_cfg and match_cfg.get("enabled") and not args.no_snap:
         rep = match_to_roads(feats, match_cfg["osrm_url"].rstrip("/"), set(match_cfg["kinds"]),
-                             os.path.join(args.cache, "osrm-match-cache.json"))
+                             os.path.join(args.cache, "osrm-match-cache.json"), drop_spurs=bool(match_cfg.get("drop_spurs")))
         if rep:
             out["shapes_quality"] = {route_ids_idx: v for route_ids_idx, v in rep.items()}
             for ri, v in sorted(rep.items(), key=lambda x: -x[1]["p95_m"]):
@@ -1252,16 +1260,17 @@ def main():
                 json.dump({"type": "FeatureCollection", "features": chk.pop("portions")}, fh)
             chk.pop("worst", None)
             out["shapes_check"] = chk
-        # dernière passe : éperons réintroduits par les portions refaites
+        # dernière passe : éperons réintroduits par les portions refaites (option « drop_spurs »)
         n_sp = 0
         for f in feats:
-            if f["properties"].get("kind") in set(match_cfg["kinds"]):
+            if match_cfg.get("drop_spurs") and f["properties"].get("kind") in set(match_cfg["kinds"]):
                 c0 = f["geometry"]["coordinates"]
-                c1 = drop_short_spurs(c0)
+                c1 = drop_short_spurs(c0, f.get("_stops", ()))
                 if len(c1) != len(c0):
                     f["geometry"]["coordinates"] = [list(x) for x in c1]
                     n_sp += 1
-        log(f"éperons : {n_sp} tracés nettoyés")
+        if match_cfg.get("drop_spurs"):
+            log(f"éperons : {n_sp} tracés nettoyés")
     for f in feats:
         f.pop("_stops", None)
     with open(os.path.join(args.out, "network.json"), "w", encoding="utf-8") as fh:
