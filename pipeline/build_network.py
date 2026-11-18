@@ -868,12 +868,14 @@ def apply_corrections(feats, corrections, key_of, near_m=60.0):
 
 # ---------------------------------------------------------------- tracé d'affichage : un seul trait par rue
 
-def display_lines(feats, tol_m=25.0, step_m=10.0, min_run_m=40.0):
+def display_lines(feats, tol_m=25.0, same_m=6.0, min_cos=0.85, step_m=8.0, min_run_m=15.0):
     """
     Tracé dessiné sur la carte : pour chaque ligne, chaque rue n'est tracée qu'une fois, quel que soit le
-    nombre de sens et de variantes qui l'empruntent (à tol_m près, la tolérance des flèches de sens unique).
-    Les tracés sont pris du plus long au plus court ; d'un tracé, on ne garde que les portions qu'aucun
-    tracé déjà retenu ne couvre (plus longues que min_run_m), raccordées à leurs voisins.
+    nombre de sens et de variantes qui l'empruntent. Un point d'un tracé est « déjà dessiné » s'il est à moins
+    de same_m d'un trait retenu, ou à moins de tol_m d'un trait retenu ALLANT DANS LA MÊME DIRECTION (dans un
+    sens ou dans l'autre, |cos| ≥ min_cos) : deux chaussées d'une même route fusionnent, mais pas les côtés
+    d'un rond-point, une bretelle ou une rue voisine perpendiculaire. Tracés pris du plus long au plus court ;
+    d'un tracé, on garde les portions non dessinées (plus longues que min_run_m), raccordées à leurs voisins.
     lines.geojson reste inchangé : il sert aux info-bulles et au découpage des itinéraires.
     """
     def xy(lon, lat, lat0):
@@ -894,33 +896,40 @@ def display_lines(feats, tol_m=25.0, step_m=10.0, min_run_m=40.0):
         def add(coords):
             c = [xy(x, y, lat0) for x, y in coords]
             for (x1, y1), (x2, y2) in zip(c, c[1:]):
+                L = math.hypot(x2 - x1, y2 - y1)
+                if L < 1e-6:
+                    continue
                 k = len(segs)
-                segs.append((x1, y1, x2, y2))
+                segs.append((x1, y1, x2, y2, (x2 - x1) / L, (y2 - y1) / L))
                 for gx in range(int(min(x1, x2) // cell) - 1, int(max(x1, x2) // cell) + 2):
                     for gy in range(int(min(y1, y2) // cell) - 1, int(max(y1, y2) // cell) + 2):
                         grid[(gx, gy)].append(k)
 
-        def covered(px, py):
+        def covered(px, py, ux, uy):
             for k in grid.get((int(px // cell), int(py // cell)), ()):
-                ax, ay, bx, by = segs[k]
-                vx, vy = bx - ax, by - ay
-                L2 = vx * vx + vy * vy
-                t = 0.0 if L2 < 1e-9 else max(0.0, min(1.0, ((px - ax) * vx + (py - ay) * vy) / L2))
-                if math.hypot(px - ax - t * vx, py - ay - t * vy) <= tol_m:
+                ax, ay, bx, by, vx, vy = segs[k]
+                L = math.hypot(bx - ax, by - ay)
+                t = max(0.0, min(L, (px - ax) * vx + (py - ay) * vy))
+                d = math.hypot(px - ax - t * vx, py - ay - t * vy)
+                if d <= same_m or (d <= tol_m and abs(ux * vx + uy * vy) >= min_cos):
                     return True
             return False
 
         props = fs[0]["properties"]
         for f in sorted(fs, key=lambda f: -length(f["geometry"]["coordinates"])):
             coords = f["geometry"]["coordinates"]
-            # polyligne densifiée (sommets d'origine + points tous les step_m), chaque point marqué couvert ou non
-            dense = []
+            # polyligne densifiée, chaque point avec la direction de son segment
+            dense, dirs = [], []
             for a, b in zip(coords, coords[1:]):
                 n = max(1, int(haversine(a[1], a[0], b[1], b[0]) // step_m))
+                (ax, ay), (bx, by) = xy(a[0], a[1], lat0), xy(b[0], b[1], lat0)
+                L = math.hypot(bx - ax, by - ay) or 1e-9
                 for j in range(n):
                     dense.append((a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n))
+                    dirs.append(((bx - ax) / L, (by - ay) / L))
             dense.append(tuple(coords[-1]))
-            flags = [covered(*xy(x, y, lat0)) for x, y in dense]
+            dirs.append(dirs[-1] if dirs else (1.0, 0.0))
+            flags = [covered(*xy(x, y, lat0), *u) for (x, y), u in zip(dense, dirs)]
             pieces, i = [], 0
             while i < len(dense):
                 if flags[i]:
@@ -931,7 +940,7 @@ def display_lines(feats, tol_m=25.0, step_m=10.0, min_run_m=40.0):
                     j += 1
                 piece = dense[max(0, i - 1): j + 2]  # raccord avec la portion déjà tracée
                 if len(piece) >= 2 and length(piece) >= min_run_m:
-                    pieces.append(simplify([(round(x, 5), round(y, 5)) for x, y in piece], 2.0))
+                    pieces.append(simplify([(round(x, 5), round(y, 5)) for x, y in piece], 1.5))
                 i = j + 1
             for p in pieces:  # ajoutées après coup : un tracé ne se couvre pas lui-même en cours de route
                 add(p)
