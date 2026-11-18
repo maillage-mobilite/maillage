@@ -101,7 +101,7 @@ function rowsHtml(data: WData, groups: ReturnType<typeof groupsOf>, max = 99) {
       </li>`).join('')
 }
 
-const credit = '<p class="w-muted w-credit">Horaires théoriques, sans retards en temps réel. Données : Pays de Gex Agglo (Licence Ouverte).</p>'
+const credit = '<p class="w-muted w-credit">Horaires théoriques, sans retards en temps réel. Données : Pays de Gex Agglo (Licence Ouverte) · <a href="./a-propos.html" target="_blank" rel="noopener">Maillage, service indépendant</a>.</p>'
 const linkHtml = (href: string, label: string, cls = 'w-link') =>
   `<a class="${cls}" href="${esc(href)}" target="_blank" rel="noopener">${label}<span class="sr"> (nouvel onglet)</span> ↗</a>`
 
@@ -195,7 +195,7 @@ function render(data: WData) {
     ${stops}
     <footer class="w-foot">
       <a class="w-link" href="${esc(lien)}" target="_blank" rel="noopener">Calculer un itinéraire<span class="sr"> (nouvel onglet)</span> ↗</a>
-      <p class="w-muted">Horaires théoriques, sans retards en temps réel. Données : Pays de Gex Agglo (Licence Ouverte).</p>
+      <p class="w-muted">Horaires théoriques, sans retards en temps réel. Données : Pays de Gex Agglo (Licence Ouverte) · <a href="./a-propos.html" target="_blank" rel="noopener">Maillage, service indépendant</a>.</p>
     </footer>`
   root.removeAttribute('aria-busy')
 }

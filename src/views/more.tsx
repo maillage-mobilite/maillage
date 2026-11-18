@@ -1,4 +1,5 @@
 // Onglets Info trafic et Mes trajets (favoris, services, sources des données).
+import { BRAND } from '../brand'
 import { Fares, Network, fmtEur, routeKey } from '../net'
 import { useState } from 'preact/hooks'
 import { Empty, Header, Icon, Pill } from '../ui'
@@ -23,35 +24,28 @@ const fmtDate = (s: string | null) => (s ? new Date(s + 'T12:00:00Z').toLocaleDa
 
 export function AlertsView({ net }: { net: Network }) {
   const expiring = net.feeds.filter(f => f.days_left != null && f.days_left < 60)
+  const L = net.tenant.links
+  const official = [L.website && { href: L.website, label: `Site officiel ${net.tenant.territory}` }, L.operator && { href: L.operator, label: "Site de l'exploitant" }]
+    .filter((x): x is { href: string; label: string } => !!x)
   return (
     <div class="sheet-body">
       <Header title="Info trafic" />
-      <Empty icon="check" title="Aucune perturbation publiée">
-        Le réseau ne diffuse pas encore ses perturbations dans un format exploitable (GTFS-RT « Service Alerts »).
-        Aujourd'hui, elles passent par un abonnement SMS chez son prestataire.
+      <Empty icon="alert" title="Perturbations : voir le réseau">
+        Les travaux, déviations et arrêts déplacés ne sont pas encore repris dans {BRAND.name}. Avant un trajet inhabituel, vérifiez l'info trafic du réseau.
       </Empty>
+      {official.map(o => <a key={o.href} class="row-btn" href={o.href} target="_blank" rel="noopener"><Icon name="external" size={18} /> {o.label}</a>)}
+      {L.phone && <a class="row-btn" href={`tel:${L.phone.replace(/\s/g, '')}`}><Icon name="phone" size={18} /> Agence mobilité · {L.phone}</a>}
       {expiring.length > 0 && (
         <section>
           <h3 class="section-title">Alertes sur les données</h3>
           {expiring.map(f => (
             <div class="card static alert-card" key={f.id}>
               <Icon name="data" />
-              <div><strong>{f.name}</strong><div class="small">Les horaires publiés s'arrêtent le {fmtDate(f.end)}, dans {f.days_left} jours. Sans nouvelle publication, l'application n'affichera plus ces bus.</div></div>
+              <div><strong>{f.name}</strong><div class="small">Les horaires publiés par le réseau s'arrêtent le {fmtDate(f.end)}, dans {f.days_left} jours. Ils seront prolongés dès que le réseau publiera les suivants.</div></div>
             </div>
           ))}
         </section>
       )}
-      <section>
-        <h3 class="section-title">À quoi cela ressemblera</h3>
-        <div class="card static alert-card example" aria-label="Exemple fictif">
-          <span class="tag">Exemple fictif</span>
-          <Icon name="alert" />
-          <div>
-            <strong>Ligne 2 : arrêt déplacé</strong>
-            <div class="small">Saisi en 2 minutes par la régie dans le back-office, publié ici, sur les fiches de la ligne et des arrêts, envoyé en notification aux voyageurs qui suivent la ligne et diffusé en GTFS-RT vers Google Maps et Transit.</div>
-          </div>
-        </div>
-      </section>
     </div>
   )
 }
@@ -137,7 +131,12 @@ export function MeView({ net, fav, near, onPlace, onRoute, onSources, onFares, h
         <button class="row-btn" onClick={onSources}><Icon name="data" size={18} /> Sources et qualité des données</button>
         <a class="row-btn" href="./"><Icon name="pin" size={18} /> Changer de territoire</a>
       </section>
-      <p class="notice">Démonstrateur indépendant et non officiel, construit uniquement à partir de données ouvertes. Il n'est affilié ni au réseau de transport ni à {net.tenant.territory}.</p>
+      <section>
+        <h3 class="section-title">À propos</h3>
+        <a class="row-btn" href={BRAND.about}><Icon name="data" size={18} /> Mentions légales, confidentialité, accessibilité</a>
+        <a class="row-btn" href={`mailto:${BRAND.contact}?subject=${encodeURIComponent(`${BRAND.name} · ${net.tenant.name}`)}`}><Icon name="external" size={18} /> Contacter l'éditeur de {BRAND.name}</a>
+      </section>
+      <p class="notice">{BRAND.disclaimer(net.tenant.territory)}</p>
     </div>
   )
 }
@@ -177,7 +176,7 @@ export function SourcesView({ net, onBack }: { net: Network; onBack: () => void 
         <p class="small">
           <strong>{net.shapes.snapped_features} tracés recalés sur la voirie.</strong> Les flux TAD et une partie des lignes scolaires et régionales
           ne publient que des lignes droites d'arrêt à arrêt. Le pipeline les fait suivre les routes OpenStreetMap (moteur OSRM) :
-          le tracé exact reste à confirmer par le réseau.
+          le tracé affiché est une reconstitution et peut différer légèrement du trajet réel.
         </p>
       )}
       {net.stationsSource && (

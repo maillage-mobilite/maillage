@@ -1,4 +1,5 @@
-// Page d'accueil : choix du territoire (un même démonstrateur, plusieurs réseaux).
+// Page d'accueil : choix du territoire (un même service, plusieurs réseaux).
+import { BRAND } from '../brand'
 import { useEffect, useState } from 'preact/hooks'
 import { Icon } from '../ui'
 import { loadTenants, tenantHref, type TenantEntry } from '../tenant'
@@ -13,7 +14,7 @@ export function TenantPicker() {
   return (
     <main class="picker">
       <header class="picker-head">
-        <span class="brand"><span class="brand-mark" aria-hidden="true" />Maillage<em>démonstrateur</em></span>
+        <span class="brand"><span class="brand-mark" aria-hidden="true" />{BRAND.name}</span>
         <h1>Horaires, itinéraires et correspondances de votre territoire</h1>
         <p>Bus, cars Région et trains réunis dans une seule application, construite à partir des données ouvertes des réseaux.</p>
       </header>
@@ -32,7 +33,7 @@ export function TenantPicker() {
           </li>
         ))}
       </ul>
-      <p class="small muted">Démonstrateur indépendant et non officiel, construit uniquement à partir de données ouvertes. Il n'est affilié à aucun des réseaux présentés.</p>
+      <p class="small muted">Service indépendant, construit à partir des données publiées en open data par les réseaux. Il n'est affilié à aucun des réseaux présentés. <a href={BRAND.about}>Mentions légales et confidentialité</a></p>
     </main>
   )
 }

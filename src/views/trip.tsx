@@ -1,4 +1,5 @@
-// Onglet Itinéraire : saisie, résultats, détail, réservation TAD (démonstration).
+// Onglet Itinéraire : saisie, résultats, détail, réservation TAD (renvoi vers le canal officiel).
+import { BRAND } from '../brand'
 import type { ComponentChildren } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { Fares, Kind, Network, fmtHM, fmtDuration, fmtDay, addDays, fmtEur } from '../net'
@@ -220,7 +221,7 @@ export function TripView({ net, now, pos, state, setState, fares, saved = [], on
         <div class="toggles">
           {net.routes.some(r => r.kind === 'tad') && <label class="toggle"><input type="checkbox" checked={state.tad} onChange={e => setState(s => ({ ...s, tad: (e.target as HTMLInputElement).checked }))} /> Transport à la demande</label>}
           <label class="toggle"><input type="checkbox" checked={state.train} onChange={e => setState(s => ({ ...s, train: (e.target as HTMLInputElement).checked }))} /> Trains</label>
-          {net.routes.some(r => r.kind === 'scolaire') && <label class="toggle"><input type="checkbox" checked={state.scolaire} onChange={e => setState(s => ({ ...s, scolaire: (e.target as HTMLInputElement).checked }))} /> Lignes scolaires <small>(à confirmer)</small></label>}
+          {net.routes.some(r => r.kind === 'scolaire') && <label class="toggle"><input type="checkbox" checked={state.scolaire} onChange={e => setState(s => ({ ...s, scolaire: (e.target as HTMLInputElement).checked }))} /> Lignes scolaires <small>(jours d'école)</small></label>}
         </div>
         </details>
       </div>
@@ -405,47 +406,31 @@ function ArrivalTrains({ net, now, journey, date }: { net: Network; now: Now; jo
 function TadBooking({ net, now, journey, date, onBack }: { net: Network; now: Now; journey: Journey; date: string; onBack: () => void }) {
   const leg = journey.legs.find(l => l.type === 'ride' && l.booking) as Extract<Leg, { type: 'ride' }>
   const tripDate = addDays(date, Math.floor(leg.dep / 86400))
-  const [n, setN] = useState(1)
-  const [name, setName] = useState('')
-  const [tel, setTel] = useState('')
-  const [sent, setSent] = useState(false)
   const b = net.booking['tad']
   const from = net.places[net.stops[leg.trip.stops[leg.fromPos]].place].name
   const to = net.places[net.stops[leg.trip.stops[leg.toPos]].place].name
-  if (sent) {
-    return (
-      <div class="sheet-body">
-        <Header title="Demande enregistrée" onBack={onBack} />
-        <div class="callout ok">
-          <Icon name="check" size={28} />
-          <p><strong>{fmtDay(tripDate, now.date)} · {fmtHM(leg.dep)}</strong> — {from} → {to}, {n} passager(s).</p>
-          <p>Vous recevrez la confirmation de l'horaire exact {b?.confirm_window ?? 'la veille'} par notification et SMS.</p>
-        </div>
-        <p class="notice warn"><strong>Démonstration :</strong> aucune demande n'a été transmise. Pour réserver réellement, appelez le {b?.phone}. En production, cette demande arriverait dans le back-office de la régie, dans la même liste que les réservations téléphoniques.</p>
-      </div>
-    )
-  }
+  const route = net.routes[leg.trip.route]
   return (
     <div class="sheet-body">
-      <Header title="Réserver le transport à la demande" onBack={onBack} sub={`${fmtDay(tripDate, now.date)} · ${net.routes[leg.trip.route].long}`} />
+      <Header title="Réserver le transport à la demande" onBack={onBack} sub={`${fmtDay(tripDate, now.date)} · ${route.long}`} />
       <div class="card static">
-        <div class="dep-row"><Pill route={net.routes[leg.trip.route]} small /><strong>{fmtHM(leg.dep)}</strong> {from}</div>
+        <div class="dep-row"><Pill route={route} small /><strong>{fmtHM(leg.dep)}</strong> {from}</div>
         <div class="dep-row"><span class="pill-spacer" /><strong>{fmtHM(leg.arr)}</strong> {to}</div>
-        <div class="muted small">Tarif : {b?.fare}</div>
+        {b?.fare && <div class="muted small">Tarif : {b.fare}</div>}
       </div>
-      <form class="form" onSubmit={e => { e.preventDefault(); setSent(true) }}>
-        <label>Passagers
-          <span class="stepper">
-            <button type="button" onClick={() => setN(Math.max(1, n - 1))} aria-label="Un passager de moins">−</button>
-            <output>{n}</output>
-            <button type="button" onClick={() => setN(Math.min(8, n + 1))} aria-label="Un passager de plus">+</button>
-          </span>
-        </label>
-        <label>Nom<input required value={name} onInput={e => setName((e.target as HTMLInputElement).value)} autocomplete="name" /></label>
-        <label>Téléphone<input required type="tel" value={tel} onInput={e => setTel((e.target as HTMLInputElement).value)} autocomplete="tel" placeholder="06 …" /></label>
-        <p class="notice warn">Démonstrateur : les informations saisies restent dans votre navigateur et ne sont envoyées nulle part.</p>
-        <button class="btn primary block" type="submit">Envoyer la demande</button>
-      </form>
+      <div class="callout tad">
+        <strong>La réservation se fait auprès du réseau</strong>
+        <p>{b ? <>Appelez au plus tard la veille avant {b.deadline_day_before.replace(':', ' h ')}. L'horaire exact vous est confirmé {b.confirm_window}.</> : "Contactez le réseau pour réserver."}</p>
+        {b?.phone && <a class="btn primary block" href={`tel:${b.phone.replace(/\s/g, '')}`}><Icon name="phone" size={18} /> Appeler le {b.phone}</a>}
+      </div>
+      <h3 class="section-title">À indiquer au téléphone</h3>
+      <ul class="small">
+        <li>la ligne : {route.short} · {route.long}</li>
+        <li>le jour : {fmtDay(tripDate, now.date)}, départ à {fmtHM(leg.dep)}</li>
+        <li>l'arrêt de départ : {from} ; l'arrêt d'arrivée : {to}</li>
+        <li>le nombre de passagers, votre nom et un numéro où vous joindre</li>
+      </ul>
+      <p class="small muted">{BRAND.name} ne transmet aucune demande : seule la réservation auprès du réseau compte.</p>
     </div>
   )
 }

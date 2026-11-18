@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>À propos · Maillage</title>
+  <meta name="description" content="Mentions légales, confidentialité, accessibilité et contact du service Maillage." />
+  <style>
+    :root { color-scheme: light dark; --text: #16201f; --muted: #5d6866; --line: #e2ded6; --bg: #fbfaf7; --surface: #fff; --accent: #0f3d3e; }
+    @media (prefers-color-scheme: dark) { :root { --text: #eef1ef; --muted: #a7b1ae; --line: #2e3533; --bg: #121615; --surface: #1a1f1e; --accent: #8fd3c9; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 46rem; margin: 0 auto; padding: 24px 16px 64px; }
+    a { color: var(--accent); }
+    h1 { font-size: 1.7rem; line-height: 1.2; margin: 8px 0 4px; }
+    h2 { font-size: 1.2rem; margin: 2.2em 0 .4em; padding-top: .6em; border-top: 1px solid var(--line); }
+    h3 { font-size: 1rem; margin: 1.4em 0 .2em; }
+    .muted { color: var(--muted); }
+    nav.toc { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 14px 0 0; font-size: .95rem; }
+    .back { display: inline-block; margin-bottom: 8px; font-size: .95rem; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: .6em 0; }
+    dt { color: var(--muted); }
+    dd { margin: 0; }
+    @media (max-width: 480px) { dl { grid-template-columns: 1fr; } dt { margin-top: 6px; } }
+    table { border-collapse: collapse; width: 100%; font-size: .95rem; margin: .6em 0; }
+    th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+    th { font-weight: 600; }
+    .wrap { overflow-x: auto; }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">← Retour à Maillage</a>
+  <h1>À propos de Maillage</h1>
+  <p class="muted">Horaires, prochains départs et itinéraires des bus, cars et trains des petits territoires, construits à partir des données publiées en open data par les réseaux.</p>
+  <nav class="toc" aria-label="Sur cette page">
+    <a href="#mentions">Mentions légales</a><a href="#donnees">Données et responsabilité</a><a href="#confidentialite">Confidentialité</a><a href="#accessibilite">Accessibilité</a><a href="#contact">Contact</a>
+  </nav>
+
+  <h2 id="mentions">Mentions légales</h2>
+  <h3>Éditeur</h3>
+  <dl>
+    <dt>Éditeur</dt><dd>Roland Louche, entrepreneur individuel (TUATAM, studio web)</dd>
+    <dt>SIRET</dt><dd>533 908 810 00039</dd>
+    <dt>Adresse</dt><dd>11 petit chemin de la Muette, 07100 Annonay, France</dd>
+    <dt>E-mail</dt><dd><a href="mailto:contact@tuatam.fr">contact@tuatam.fr</a></dd>
+    <dt>Directeur de la publication</dt><dd>Roland Louche</dd>
+  </dl>
+  <h3>Hébergement</h3>
+  <p>OVH SAS, 2 rue Kellermann, 59100 Roubaix, France (RCS Lille Métropole 424 761 419), <a href="https://www.ovhcloud.com/" rel="noopener">ovhcloud.com</a>. Serveur situé à Londres (Royaume-Uni).</p>
+  <h3>Indépendance</h3>
+  <p>Maillage est un service indépendant. Il n'est affilié à aucun réseau de transport ni à aucune collectivité, sauf mention contraire sur la page du territoire. Les noms et marques des réseaux appartiennent à leurs titulaires.</p>
+
+  <h2 id="donnees">Données et responsabilité</h2>
+  <p>Les horaires sont les <strong>horaires théoriques</strong> publiés par les réseaux. Ils ne tiennent pas compte des retards, travaux ou déviations, sauf quand le réseau publie ces informations en temps réel (trains SNCF). <strong>En cas de doute, l'information officielle du réseau fait foi.</strong> Les données sont mises à jour automatiquement chaque jour où un réseau publie une nouvelle version, et au moins chaque semaine ; un contrôle bloque la publication de données incomplètes.</p>
+  <p>Le détail des sources de chaque territoire (flux, dates de validité, corrections appliquées) figure dans l'application, rubrique <em>Mes trajets › Sources et qualité des données</em>.</p>
+  <div class="wrap"><table>
+    <thead><tr><th>Données</th><th>Source</th><th>Licence</th></tr></thead>
+    <tbody>
+      <tr><td>Horaires des bus, cars et transport à la demande</td><td>réseaux et collectivités, via <a href="https://transport.data.gouv.fr/" rel="noopener">transport.data.gouv.fr</a></td><td>Licence Ouverte (Etalab)</td></tr>
+      <tr><td>Horaires des trains</td><td>SNCF ; CFF via <a href="https://opentransportdata.swiss/" rel="noopener">opentransportdata.swiss</a></td><td>licences des producteurs</td></tr>
+      <tr><td>Fond de carte, tracés recalés sur la voirie, lieux utiles</td><td>© contributeurs <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a> ; carte <a href="https://openfreemap.org" rel="noopener">OpenFreeMap</a>, <a href="https://www.openmaptiles.org/" rel="noopener">OpenMapTiles</a></td><td>ODbL</td></tr>
+      <tr><td>Adresses</td><td>Base Adresse Nationale (<a href="https://adresse.data.gouv.fr/" rel="noopener">adresse.data.gouv.fr</a>)</td><td>Licence Ouverte (Etalab)</td></tr>
+      <tr><td>Photographies aériennes</td><td>IGN (<a href="https://geoservices.ign.fr/" rel="noopener">Géoplateforme</a>)</td><td>Licence Ouverte (Etalab)</td></tr>
+    </tbody>
+  </table></div>
+  <p>Une erreur d'horaire ou d'arrêt ? Le lien <em>Signaler un problème</em> des fiches ligne et arrêt prépare un message avec le contexte. Le message est adressé au réseau concerné quand il publie une adresse de contact, avec copie à l'éditeur de Maillage ; sinon à l'éditeur, qui le transmet.</p>
+
+  <h2 id="confidentialite">Confidentialité</h2>
+  <p><strong>Maillage ne vous demande aucun compte, ne dépose aucun cookie et n'utilise aucun outil de publicité ou de suivi.</strong></p>
+  <h3>Ce qui reste sur votre appareil</h3>
+  <p>Vos favoris (arrêts, lignes) et vos lieux (domicile, travail, école…) sont enregistrés dans votre navigateur uniquement. Ils ne sont jamais envoyés à nos serveurs. Les effacer : supprimer les données du site dans les réglages du navigateur.</p>
+  <h3>Votre position</h3>
+  <p>Si vous l'autorisez, votre position sert à afficher les arrêts autour de vous. Le calcul se fait dans votre navigateur ; la position n'est ni envoyée à nos serveurs ni conservée. Sans autorisation, l'application part du pôle principal du territoire.</p>
+  <h3>Mesure d'audience, sans adresse IP</h3>
+  <p>Pour savoir si le service est utile, le serveur compte les affichages de l'application et des encarts intégrés aux sites des communes. Chaque affichage est noté avec : la date et l'heure, la page (application ou encart), le territoire, la commune et le format de l'encart, le nom du site qui l'intègre, le type d'appareil (téléphone, tablette, ordinateur) et, tant que l'application est en accès réservé, le nom du compte d'essai utilisé. <strong>Aucune adresse IP, aucun identifiant, aucun cookie</strong> : on compte des affichages, pas des personnes. Le journal technique des erreurs du serveur peut contenir des adresses IP ; il est effacé automatiquement au bout de quelques jours.</p>
+  <h3>Services tiers appelés par votre navigateur</h3>
+  <p>Comme tout site, ces services reçoivent l'adresse IP de votre appareil au moment de la requête :</p>
+  <div class="wrap"><table>
+    <thead><tr><th>Service</th><th>Pour quoi</th><th>Ce qui est transmis</th></tr></thead>
+    <tbody>
+      <tr><td>OpenFreeMap ; IGN (photos aériennes, si vous les affichez)</td><td>fond de carte</td><td>les portions de carte affichées</td></tr>
+      <tr><td>Base Adresse Nationale (État)</td><td>recherche d'une adresse</td><td>le texte saisi et le point de départ de la recherche (votre position ou le centre du territoire), pour classer les résultats</td></tr>
+      <tr><td>routing.openstreetmap.de</td><td>tracé à pied des trajets</td><td>les points de départ et d'arrivée des étapes à pied</td></tr>
+      <tr><td>transport.data.gouv.fr</td><td>retards des trains SNCF</td><td>rien d'autre que la requête</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Vos droits</h3>
+  <p>Maillage ne constitue aucun fichier de personnes. Pour toute question sur vos données : <a href="mailto:contact@tuatam.fr">contact@tuatam.fr</a>. Vous pouvez aussi adresser une réclamation à la <a href="https://www.cnil.fr/fr/plaintes" rel="noopener">CNIL</a>.</p>
+
+  <h2 id="accessibilite">Accessibilité</h2>
+  <p>Maillage vise la conformité au <abbr title="Référentiel général d'amélioration de l'accessibilité">RGAA</abbr> 4.1 (niveau AA du WCAG 2.1) : navigation au clavier, compatibilité avec les lecteurs d'écran, contrastes, textes agrandissables.</p>
+  <p><strong>État de conformité : non encore évalué.</strong> Un audit complet est prévu ; la déclaration d'accessibilité détaillée sera publiée ici à son issue.</p>
+  <p>Si vous ne parvenez pas à accéder à une information ou à un service, écrivez à <a href="mailto:contact@tuatam.fr?subject=Accessibilit%C3%A9%20Maillage">contact@tuatam.fr</a> : nous vous répondrons et vous fournirons l'information sous une autre forme. Si vous n'obtenez pas de réponse satisfaisante, vous pouvez saisir le <a href="https://formulaire.defenseurdesdroits.fr/" rel="noopener">Défenseur des droits</a>.</p>
+
+  <h2 id="contact">Contact</h2>
+  <ul>
+    <li><strong>Une question sur un horaire, un tarif, une réservation</strong> : le réseau concerné (coordonnées dans l'application, rubrique <em>Mes trajets › Services</em>).</li>
+    <li><strong>Un problème avec l'application ou un encart</strong>, une commune intéressée : <a href="mailto:contact@tuatam.fr?subject=Maillage">contact@tuatam.fr</a>.</li>
+  </ul>
+  <p class="muted">Page mise à jour le 18 novembre 2026.</p>
+</main>
+</body>
+</html>

@@ -1,6 +1,6 @@
-// Calculateur d'itinéraires du démonstrateur : Connection Scan Algorithm (CSA).
+// Calculateur d'itinéraires : Connection Scan Algorithm (CSA).
 //
-// Choix volontaire pour le démonstrateur : un petit réseau (~15 000 connexions/jour)
+// Choix volontaire : un petit réseau (~15 000 connexions/jour)
 // se calcule en quelques millisecondes dans le navigateur, sans serveur.
 // La cible production reste OpenTripPlanner 2 (ADR-004), qui gère aussi GTFS-RT et GTFS-Flex.
 //

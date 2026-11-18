@@ -81,11 +81,11 @@
     }
   ],
   "data_gaps": [
-    "Tracés des lignes : absents du flux (lignes recalées sur les routes par le démonstrateur).",
+    "Tracés des lignes : absents du flux (lignes recalées sur les routes par Maillage).",
     "Temps réel des bus TPG : publié côté suisse (opentransportdata.swiss, clé d'API), non branché ici.",
     "Tarifs Unireso / Léman Pass : aucun flux GTFS-Fares.",
     "Accessibilité des arrêts : non renseignée.",
-    "Couleurs des lignes : absentes du flux, couleurs indicatives choisies par le démonstrateur."
+    "Couleurs des lignes : absentes du flux, couleurs indicatives choisies par Maillage."
   ],
   "credits": "Bus : Pays de Gex Agglo / TPG (Licence Ouverte). Cars Région : agrégat Oùra (ODbL). Trains : SNCF Open Data (ODbL).",
   "links": {

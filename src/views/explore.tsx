@@ -135,7 +135,7 @@ export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch, onGoLo
         <h3 class="section-title">Toutes les lignes</h3>
         {(['urbain', 'tad', 'region', 'scolaire', 'train'] as Kind[]).filter(k => net.routes.some(r => r.kind === k)).map(k => (
           <div class="line-group" key={k}>
-            <div class="line-group-label">{KIND_LABEL[k]}{k === 'scolaire' ? ' · ouverture au public à confirmer' : k === 'train' ? ` · en correspondance (${net.routes.some(r => r.kind === 'train' && r.short !== 'TER') ? 'SNCF et CFF' : 'SNCF'})` : ''}</div>
+            <div class="line-group-label">{KIND_LABEL[k]}{k === 'scolaire' ? " · jours d'école" : k === 'train' ? ` · en correspondance (${net.routes.some(r => r.kind === 'train' && r.short !== 'TER') ? 'SNCF et CFF' : 'SNCF'})` : ''}</div>
             {k === 'train' && !showTrains
               ? <button class="btn ghost" onClick={() => setShowTrains(true)} aria-expanded={false}>Afficher les {uniqueRoutes('train').length} lignes de train</button>
               : k === 'train' ? <ul class="ter-list">
@@ -305,7 +305,7 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
           <a class="btn" href={`tel:${booking.phone.replace(/\s/g, '')}`}><Icon name="phone" size={16} /> {booking.phone}</a>
         </div>
       )}
-      {r.kind === 'scolaire' && <p class="notice warn">Ligne scolaire : l'ouverture aux voyageurs non scolaires reste à confirmer avec le réseau.</p>}
+      {r.kind === 'scolaire' && <p class="notice warn">Ligne scolaire : elle circule les jours d'école. L'accès des voyageurs non scolaires dépend du règlement du réseau{net.tenant.links.website ? <> (<a href={net.tenant.links.website} target="_blank" rel="noopener">site officiel</a>)</> : ''}.</p>}
       <div class="segmented" role="tablist" aria-label="Sens">
         <button role="tab" aria-selected={dir === 0} class={dir === 0 ? 'on' : ''} onClick={() => { setDir(0); setSel(null); setAtPlace(null) }}>{dirLabel(0) || 'Sens 1'}</button>
         {hasDir1 && <button role="tab" aria-selected={dir === 1} class={dir === 1 ? 'on' : ''} onClick={() => { setDir(1); setSel(null); setAtPlace(null) }}>{dirLabel(1)}</button>}

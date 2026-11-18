@@ -1,3 +1,4 @@
+import { BRAND } from './brand'
 import type { ComponentChildren } from 'preact'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { Fares, Kind, Network, Pois, Trip, loadFares, loadNetwork, parisNow, distance, usePois } from './net'
@@ -232,7 +233,7 @@ function Shell({ net }: { net: Network }) {
           hidden={poiHidden} setHidden={setPoiHidden} onClose={() => setLegendOpen(false)} />
       )}
       <div class="topbar">
-        <span class="brand"><span class="brand-mark" aria-hidden="true" />Maillage<em>démo · {net.tenant.name}</em></span>
+        <span class="brand"><span class="brand-mark" aria-hidden="true" />{BRAND.name}<em>{net.tenant.name}</em></span>
         <span class="top-actions">
           <span class="basemap-wrap">
             <button class="icon-btn floating" onClick={() => setBasemapOpen(o => !o)} aria-label="Fond de carte" aria-expanded={basemapOpen} aria-haspopup="menu"><Icon name="layers" /></button>

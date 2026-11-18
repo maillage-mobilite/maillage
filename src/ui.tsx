@@ -1,4 +1,5 @@
 // Petits composants d'interface partagés.
+import { BRAND } from './brand'
 import { createContext, type ComponentChildren } from 'preact'
 import { useContext } from 'preact/hooks'
 import { Network, Route, fmtHM, fmtDay, addDays } from './net'
@@ -103,12 +104,11 @@ export function Empty({ icon = 'info', title, children }: { icon?: string; title
   )
 }
 
-/** Lien « Signaler un problème » : courriel pré-rempli à l'agence (en production : formulaire vers le back-office). */
+/** Lien « Signaler un problème » : courriel pré-rempli au réseau (s'il publie une adresse), copie à l'éditeur ; sinon à l'éditeur seul. */
 export function ReportLink({ email, subject, context }: { email?: string; subject: string; context: string }) {
-  if (!email) return null // territoire sans adresse de signalement publiée
-  const body = `Bonjour,\n\nJe souhaite signaler un problème :\n\n(décrivez ici : horaire erroné, arrêt déplacé, information manquante…)\n\n---\n${context}\nSignalé depuis le démonstrateur Maillage le ${new Date().toLocaleString('fr-FR')}.`
+  const body = `Bonjour,\n\nJe souhaite signaler un problème :\n\n(décrivez ici : horaire erroné, arrêt déplacé, information manquante…)\n\n---\n${context}\nSignalé depuis ${BRAND.name} le ${new Date().toLocaleString('fr-FR')}.`
   return (
-    <a class="report-link" href={`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}>
+    <a class="report-link" href={`mailto:${email ?? BRAND.contact}?${email ? `cc=${BRAND.contact}&` : ''}subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}>
       <Icon name="alert" size={16} /> Signaler un problème sur cette fiche
     </a>
   )
@@ -117,7 +117,7 @@ export function ReportLink({ email, subject, context }: { email?: string; subjec
 export function TheoNotice() {
   return (
     <p class="notice">
-      <span class="dot-theo">○</span> Horaires théoriques issus des données ouvertes. Le réseau ne publie pas encore son temps réel en open data.
+      <span class="dot-theo">○</span> Horaires théoriques publiés par le réseau, sans les retards : le réseau ne publie pas encore son temps réel en open data.
     </p>
   )
 }
