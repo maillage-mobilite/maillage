@@ -705,6 +705,87 @@ def rail_route(feats, osrm_url, cache_path, radius=500, max_ratio=1.6, chunk=100
     log(f"tracés ferroviaires : {done} lignes TER tracées sur les voies, {kept} tronçons entre gares laissés droits (hors de l'extrait OSM)")
     return {"routed_features": done, "kept_straight": kept}
 
+# ---------------------------------------------------------------- harmonisation des variantes d'une ligne
+
+def harmonize_variants(feats, key_of, near_m=60.0, step_m=15.0, kinds=("urbain", "tad", "scolaire", "region")):
+    """
+    Une ligne a souvent plusieurs parcours (aller, retour, services partiels), chacun avec son tracé, recalé
+    séparément : entre deux mêmes arrêts, les tracés diffèrent de quelques mètres, ou l'un d'eux est faux
+    (corde à travers le bâti). Pour chaque paire d'arrêts consécutifs desservie par plusieurs parcours d'une
+    même ligne (même sens), on retient le tracé « médian » (celui qui s'écarte le moins des autres) et on
+    l'applique à tous. Renvoie (portions remplacées, paires harmonisées).
+    """
+    def dense(c):
+        out = []
+        for a, b in zip(c, c[1:]):
+            n = max(1, int(haversine(a[1], a[0], b[1], b[0]) // step_m))
+            out += [(a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n) for j in range(n)]
+        return out + [tuple(c[-1])]
+
+    def gap(p_pts, line):  # écart moyen (m) des points de p à la polyligne line
+        tot = 0.0
+        for p in p_pts:
+            best = _along(line, p, 0.0, 1e9)
+            tot += best[3] if best else 1e9
+        return tot / max(1, len(p_pts))
+
+    # découpage de chaque tracé aux arrêts : [préfixe, tronçon 1, …, tronçon n, suffixe]
+    cut = {}
+    groups = defaultdict(list)
+    for fi, f in enumerate(feats):
+        if f["properties"].get("kind") not in kinds or not f.get("_stops") or len(f["_stops"]) < 2:
+            continue
+        line = [tuple(x) for x in f["geometry"]["coordinates"]]
+        proj, s0 = [], 0.0
+        for st in f["_stops"]:
+            p = _along(line, tuple(st), s0)
+            if not p:
+                proj = None
+                break
+            proj.append(p)
+            s0 = p[0]
+        if not proj:
+            continue
+        pieces = [line[:proj[0][1] + 1] + [proj[0][2]]]
+        for a, b in zip(proj, proj[1:]):
+            pieces.append([a[2]] + line[a[1] + 1:b[1] + 1] + [b[2]])
+        pieces.append([proj[-1][2]] + line[proj[-1][1] + 1:])
+        cut[fi] = pieces
+        key = key_of(f["properties"]["route"])
+        for k, (sa, sb) in enumerate(zip(f["_stops"], f["_stops"][1:])):
+            groups[(key, round(sa[0], 4), round(sa[1], 4), round(sb[0], 4), round(sb[1], 4))].append((fi, k + 1))
+
+    replaced = harmonized = 0
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        cands = [cut[fi][k] for fi, k in members]
+        uniq = {}
+        for c in cands:
+            uniq.setdefault(json.dumps([[round(x, 5), round(y, 5)] for x, y in c]), c)
+        if len(uniq) < 2:
+            continue
+        geoms = list(uniq.values())
+        if len(geoms) > 8:
+            geoms = geoms[:8]
+        dens = [dense(g) for g in geoms]
+        cost = [sum(gap(dens[i], geoms[j]) + gap(dens[j], geoms[i]) for j in range(len(geoms)) if j != i) for i in range(len(geoms))]
+        med = geoms[cost.index(min(cost))]
+        harmonized += 1
+        for fi, k in members:
+            if cut[fi][k] is not med:
+                old = cut[fi][k]
+                # raccord aux points d'arrêt projetés propres à ce tracé
+                cut[fi][k] = [old[0]] + med[1:-1] + [old[-1]] if len(med) > 2 else [old[0], old[-1]]
+                replaced += 1
+    for fi, pieces in cut.items():
+        coords = pieces[0]
+        for p in pieces[1:]:
+            coords = coords + p[1:]
+        feats[fi]["geometry"]["coordinates"] = [[round(x, 6), round(y, 6)] for x, y in coords]
+    return replaced, harmonized
+
+
 # ---------------------------------------------------------------- corrections manuelles (éditeur de tracés)
 
 def load_corrections(path):
@@ -1442,6 +1523,9 @@ def main():
                     n_sp += 1
         if match_cfg.get("drop_spurs"):
             log(f"éperons : {n_sp} tracés nettoyés")
+    # variantes d'une même ligne : un seul tracé entre deux mêmes arrêts (le plus consensuel)
+    n_rep, n_pairs = harmonize_variants(feats, lambda ri: (routes[route_ids[ri]]["short"], routes[route_ids[ri]]["kind"]))
+    log(f"harmonisation des variantes : {n_pairs} paires d'arrêts, {n_rep} portions alignées sur le tracé médian")
     # tracés calculés, avant corrections manuelles (base de pipeline/apply_corrections.py, réversible)
     with open(os.path.join(args.cache, f"{cfg['tenant']}-lines-auto.json"), "w", encoding="utf-8") as fh:
         json.dump({"type": "FeatureCollection", "features": feats}, fh, separators=(",", ":"))

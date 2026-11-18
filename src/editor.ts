@@ -95,6 +95,9 @@ let routes: Route[] = []
 let stops: Stop[] = []
 let trips: [number, number[]][] = []
 let lines: { route: number; coords: LngLat[] }[] = []
+/** tracé d'affichage de l'application (un seul trait par rue) */
+let shown: { route: number; coords: LngLat[] }[] = []
+let showVariants = false
 let corrections: Correction[] = []
 let current: Route | null = null
 let troncons: Troncon[] = []
@@ -118,8 +121,10 @@ const ready = new Promise<void>(ok => map.on('load', () => ok()))
 const src = (id: string) => map.getSource(id) as GeoJSONSource
 
 ready.then(() => {
-  for (const id of ['route-lines', 'route-stops', 'sel', 'edit-line', 'edit-pts', 'vias']) map.addSource(id, { type: 'geojson', data: EMPTY })
-  map.addLayer({ id: 'route-lines', type: 'line', source: 'route-lines', paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-opacity': 0.55 } })
+  for (const id of ['route-lines', 'route-variants', 'route-stops', 'sel', 'edit-line', 'edit-pts', 'vias']) map.addSource(id, { type: 'geojson', data: EMPTY })
+  // trait unique, comme dans l'application ; variantes brutes (un tracé par parcours) à la demande
+  map.addLayer({ id: 'route-lines', type: 'line', source: 'route-lines', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': 4, 'line-opacity': 0.75 } })
+  map.addLayer({ id: 'route-variants', type: 'line', source: 'route-variants', layout: { visibility: 'none' }, paint: { 'line-color': '#111827', 'line-width': 1.2, 'line-opacity': 0.6, 'line-dasharray': [2, 2] } })
   map.addLayer({ id: 'sel', type: 'line', source: 'sel', paint: { 'line-color': '#111827', 'line-width': 7, 'line-opacity': 0.18 } })
   map.addLayer({ id: 'route-stops', type: 'circle', source: 'route-stops', paint: { 'circle-radius': 4.5, 'circle-color': '#fff', 'circle-stroke-color': '#111', 'circle-stroke-width': 1.5 } })
   map.addLayer({ id: 'route-stops-label', type: 'symbol', source: 'route-stops', minzoom: 14,
@@ -210,15 +215,17 @@ async function loadReseau(id: string) {
   ;($('reseau') as HTMLSelectElement).value = id
   status('Chargement…')
   const bust = `?t=${Date.now()}`
-  const [net, geo, corr] = await Promise.all([
+  const [net, geo, disp, corr] = await Promise.all([
     fetch(`/data/${id}/network.json${bust}`).then(r => r.json()),
     fetch(`/data/${id}/lines.geojson${bust}`).then(r => r.json()),
+    fetch(`/data/${id}/lines-display.geojson${bust}`).then(r => r.ok ? r.json() : { features: [] }),
     fetch(`/__editeur/corrections?reseau=${id}`).then(r => r.json()),
   ])
   routes = net.routes.map((r: any[], i: number) => ({ i, short: r[0], long: r[1], color: '#' + r[2], text: '#' + r[3], kind: r[4] }))
   stops = net.stops.map((s: any[]) => ({ name: s[0], lat: s[1], lon: s[2] }))
   trips = net.trips.map((t: any[]) => [t[0], t[4]])
   lines = geo.features.map((f: any) => ({ route: f.properties.route, coords: f.geometry.coordinates }))
+  shown = disp.features.map((f: any) => ({ route: f.properties.route, coords: f.geometry.coordinates }))
   corrections = corr.corrections ?? []
   const sel$ = $('ligne') as HTMLSelectElement
   const seen = new Set<string>()
@@ -274,7 +281,11 @@ function selectRoute(i: number, fit = false) {
   current = routes[i]
   ;($('ligne') as HTMLSelectElement).value = String(i)
   const same = routes.filter(x => x.short === current!.short && x.kind === current!.kind).map(x => x.i)
-  src('route-lines').setData({ type: 'FeatureCollection', features: lines.filter(l => same.includes(l.route)).map(l => ({ type: 'Feature', properties: { color: current!.color }, geometry: { type: 'LineString', coordinates: l.coords } })) } as any)
+  const fc = (ls: typeof lines) => ({ type: 'FeatureCollection', features: ls.filter(l => same.includes(l.route)).map(l => ({ type: 'Feature', properties: { color: current!.color }, geometry: { type: 'LineString', coordinates: l.coords } })) }) as any
+  src('route-lines').setData(fc(shown.length ? shown : lines))
+  src('route-variants').setData(fc(lines))
+  const nv = lines.filter(l => same.includes(l.route)).length
+  $('variantes').textContent = `Voir les ${nv} tracés bruts (un par parcours)`
   const ids = new Set<number>(trips.filter(t => same.includes(t[0])).flatMap(t => t[1]))
   src('route-stops').setData({ type: 'FeatureCollection', features: [...ids].map(s => ({ type: 'Feature', properties: { name: stops[s].name }, geometry: { type: 'Point', coordinates: [stops[s].lon, stops[s].lat] } })) } as any)
   troncons = tronconsOf(current)
@@ -389,6 +400,11 @@ $('b-supprimer').addEventListener('click', async () => {
   try { await saveAll('Correction retirée'); openEdit(sel); renderList() } catch (e) { status(`Échec : ${(e as Error).message}`) }
 })
 $('b-annuler').addEventListener('click', () => { if (sel) openEdit(sel) })
+$('variantes').addEventListener('click', () => {
+  showVariants = !showVariants
+  map.setLayoutProperty('route-variants', 'visibility', showVariants ? 'visible' : 'none')
+  $('variantes').setAttribute('aria-pressed', String(showVariants))
+})
 $('m-points').addEventListener('click', () => setMode('points'))
 $('m-route').addEventListener('click', () => setMode('route'))
 $('m-main').addEventListener('click', () => setMode('main'))
