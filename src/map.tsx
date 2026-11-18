@@ -136,7 +136,10 @@ export function MapView(props: MapProps) {
     map.current = m
     if (import.meta.env.DEV) (window as any).__map = m
     m.on('load', () => {
+      // tracés complets (info-bulles « provenance → destination », découpage des itinéraires) et tracé d'affichage :
+      // un seul trait par rue et par ligne, aller, retour et variantes confondus (pipeline, display_lines)
       m.addSource('lines', { type: 'geojson', data: dataUrl('lines.geojson') })
+      m.addSource('lines-display', { type: 'geojson', data: dataUrl('lines-display.geojson') })
       // portions où l'aller et le retour d'une ligne ne suivent pas le même chemin (calculées par le pipeline)
       m.addSource('oneway', { type: 'geojson', data: dataUrl('oneway.geojson') })
       m.addSource('places', {
@@ -169,15 +172,18 @@ export function MapView(props: MapProps) {
         m.addLayer({ id: `basemap-${id}`, type: 'raster', source: `basemap-${id}`, layout: { visibility: 'none' },
           paint: { 'raster-opacity': id === 'velo' ? 0.95 : 1 } })
       }
-      m.addLayer({ id: 'lines-casing', type: 'line', source: 'lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
+      m.addLayer({ id: 'lines-casing', type: 'line', source: 'lines-display', layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 15, 7], 'line-opacity': 0.9 } })
-      m.addLayer({ id: 'lines', type: 'line', source: 'lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
+      m.addLayer({ id: 'lines-show', type: 'line', source: 'lines-display', layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
           'line-color': ['get', 'color'],
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.2, 15, 4],
           'line-opacity': ['match', ['get', 'kind'], 'scolaire', 0.3, 'region', 0.35, 'train', 0.7, 0.9],
           'line-dasharray': ['match', ['get', 'kind'], 'tad', ['literal', [1, 1.5]], 'train', ['literal', [3, 1.5]], ['literal', [1, 0]]],
         } })
+      // couche de détection, invisible (opacité nulle, toujours interrogeable) : le survol et le toucher lisent les tracés complets (sens, variantes)
+      m.addLayer({ id: 'lines', type: 'line', source: 'lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#000000', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 15, 12], 'line-opacity': 0 } })
       m.addImage('maillage-arrow', arrowImage(), { pixelRatio: 2 }) // nom propre : le fond de carte a déjà une icône « arrow »
       // sens de circulation, uniquement là où l'aller et le retour diffèrent ; discret
       m.addLayer({ id: 'lines-arrows', type: 'symbol', source: 'oneway', minzoom: 13.5,
@@ -187,7 +193,7 @@ export function MapView(props: MapProps) {
           'icon-allow-overlap': false, 'icon-padding': 6, 'icon-rotation-alignment': 'map', 'icon-keep-upright': false,
         },
         paint: { 'icon-opacity': 0.9 } })
-      m.addLayer({ id: 'lines-hover', type: 'line', source: 'lines', filter: ['==', ['get', 'route'], -1],
+      m.addLayer({ id: 'lines-hover', type: 'line', source: 'lines-display', filter: ['==', ['get', 'route'], -1],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 15, 8], 'line-opacity': 1 } })
       // ligne survolée ou sélectionnée : mêmes portions, un peu plus visibles et à tous les zooms
@@ -313,13 +319,13 @@ export function MapView(props: MapProps) {
       const dim = props.journey != null && props.previewRoute == null
       const base: any = KIND_OPACITY
       const opacity: any = r != null ? ['case', ['==', ['get', 'route'], r], 1, 0.1] : dim ? 0.1 : base
-      m.setPaintProperty('lines', 'line-opacity', opacity)
+      m.setPaintProperty('lines-show', 'line-opacity', opacity)
       m.setPaintProperty('lines-arrows', 'icon-opacity', r != null ? ['case', ['==', ['get', 'route'], r], 0.9, 0.15] : dim ? 0.15 : 0.9)
       m.setPaintProperty('lines-casing', 'line-opacity', r != null ? ['case', ['==', ['get', 'route'], r], 1, 0] : dim ? 0 : 0.9)
       m.setPaintProperty('places', 'circle-opacity', dim ? 0.3 : 1)
       m.setPaintProperty('places', 'circle-stroke-opacity', dim ? 0.3 : 1)
       m.setPaintProperty('pois', 'icon-opacity', dim || r != null ? 0.35 : 1)
-      m.setPaintProperty('lines', 'line-width', r == null
+      m.setPaintProperty('lines-show', 'line-width', r == null
         ? ['interpolate', ['linear'], ['zoom'], 10, ['match', ['get', 'kind'], 'region', 0.8, 1.2], 15, ['match', ['get', 'kind'], 'region', 2.5, 4]]
         // le zoom doit rester au premier niveau de l'expression : la condition va dans chaque palier
         : ['interpolate', ['linear'], ['zoom'], 10, ['case', ['==', ['get', 'route'], r], 3, 0.8], 15, ['case', ['==', ['get', 'route'], r], 7, 2]])
@@ -348,6 +354,7 @@ export function MapView(props: MapProps) {
       for (const l of ['stations-halo', 'stations', 'stations-label']) m.setLayoutProperty(l, 'visibility', vis)
       const lineFilter: any = ['any', ['in', ['get', 'kind'], kinds], ['==', ['get', 'route'], r]]
       m.setFilter('lines', lineFilter)
+      m.setFilter('lines-show', lineFilter)
       m.setFilter('lines-casing', lineFilter)
       m.setFilter('lines-arrows', lineFilter)
       const served: any = lineKinds.length ? ['any', ...lineKinds.map(k => ['in', k, ['get', 'feeds']])] : false

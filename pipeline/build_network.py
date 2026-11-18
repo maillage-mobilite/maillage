@@ -314,6 +314,24 @@ def drop_short_spurs(coords, stops=(), max_leg_m=120.0, back_m=25.0, stop_m=35.0
                 j += 1
             if changed:
                 break
+    # crochets : demi-tour net sur un sommet dont un bras fait moins de hook_m (le calcul rejoint un point
+    # d'une rue voisine puis repart en arrière) ; sommet retiré s'il ne dessert aucun arrêt
+    hook_m = 35.0
+    changed = True
+    while changed and len(c) > 3:
+        changed = False
+        for i in range(1, len(c) - 1):
+            a, b, d = c[i - 1], c[i], c[i + 1]
+            kx = 111320 * math.cos(math.radians(b[1]))
+            v1 = ((b[0] - a[0]) * kx, (b[1] - a[1]) * 110540)
+            v2 = ((d[0] - b[0]) * kx, (d[1] - b[1]) * 110540)
+            l1, l2 = math.hypot(*v1), math.hypot(*v2)
+            if l1 < 1 or l2 < 1 or min(l1, l2) > hook_m:
+                continue
+            if (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2) < -0.9 and not serves_stop([b]):
+                c = c[:i] + c[i + 1:]
+                changed = True
+                break
     return c
 
 
@@ -342,6 +360,10 @@ def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, r
         cum = [0.0]
         for a_, b_ in zip(orig, orig[1:]):
             cum.append(cum[-1] + haversine(a_[1], a_[0], b_[1], b_[0]))
+        # tracé d'origine fait de cordes d'arrêt en arrêt (flux sans tracé, ex. TPG) : la vraie route est
+        # nettement plus longue que la corde, le plafond de longueur doit le permettre
+        sparse = len(orig) / max(cum[-1] / 1000, 0.1) < 6
+        hi_ratio = 1.6 if sparse else max_ratio
         pts = resample(orig, step_m)
         new = []
         st = per_route[f["properties"]["route"]]
@@ -383,17 +405,19 @@ def match_to_roads(feats, osrm_url, kinds, cache_path, step_m=35.0, chunk=200, r
             ok = False
             if hit and hit["matched"] >= min_matched and len(hit["geom"]) >= 2:
                 L1 = sum(haversine(a[1], a[0], b[1], b[0]) for a, b in zip(hit["geom"], hit["geom"][1:]))
-                ok = min_ratio * L0 <= L1 <= max_ratio * L0 + 80
+                ok = min_ratio * L0 <= L1 <= hi_ratio * L0 + 80
             if not ok:
                 # plan B : itinéraire routier par les sommets d'origine du bloc (arrêts, points de tracé),
                 # utile quand le tracé publié est une ligne droite à travers le bâti (appariement impossible)
                 lo, hi = k * step_m, (k + len(ch) - 1) * step_m
                 via = [ch[0]] + [orig[i] for i in range(len(orig)) if lo < cum[i] < hi] + [ch[-1]]
-                key2 = "route:" + hashlib.md5(";".join(f"{x:.5f},{y:.5f}" for x, y in via).encode()).hexdigest()
+                key2 = "route2:" + hashlib.md5(";".join(f"{x:.5f},{y:.5f}" for x, y in via).encode()).hexdigest()
                 if key2 not in cache:
                     try:
+                        # début et fin du bloc : points ré-échantillonnés, parfois au milieu d'une corde loin de toute route
+                        rad = ["250"] + ["60"] * (len(via) - 2) + ["250"]
                         r2 = fetch_json(f"{osrm_url}/route/v1/driving/" + ";".join(f"{x:.6f},{y:.6f}" for x, y in via) +
-                                        "?overview=full&geometries=geojson&continue_straight=true&radiuses=" + ";".join(["60"] * len(via)))
+                                        "?overview=full&geometries=geojson&continue_straight=true&radiuses=" + ";".join(rad))
                         rt = r2["routes"][0] if r2.get("code") == "Ok" else None
                         cache[key2] = {"geom": rt["geometry"]["coordinates"], "dist": rt["distance"]} if rt else None
                     except Exception:
@@ -680,6 +704,80 @@ def rail_route(feats, osrm_url, cache_path, radius=500, max_ratio=1.6, chunk=100
     json.dump(cache, open(cache_path, "w"))
     log(f"tracés ferroviaires : {done} lignes TER tracées sur les voies, {kept} tronçons entre gares laissés droits (hors de l'extrait OSM)")
     return {"routed_features": done, "kept_straight": kept}
+
+# ---------------------------------------------------------------- tracé d'affichage : un seul trait par rue
+
+def display_lines(feats, tol_m=25.0, step_m=10.0, min_run_m=40.0):
+    """
+    Tracé dessiné sur la carte : pour chaque ligne, chaque rue n'est tracée qu'une fois, quel que soit le
+    nombre de sens et de variantes qui l'empruntent (à tol_m près, la tolérance des flèches de sens unique).
+    Les tracés sont pris du plus long au plus court ; d'un tracé, on ne garde que les portions qu'aucun
+    tracé déjà retenu ne couvre (plus longues que min_run_m), raccordées à leurs voisins.
+    lines.geojson reste inchangé : il sert aux info-bulles et au découpage des itinéraires.
+    """
+    def xy(lon, lat, lat0):
+        return (lon * 111320 * math.cos(math.radians(lat0)), lat * 110540)
+
+    def length(c):
+        return sum(haversine(a[1], a[0], b[1], b[0]) for a, b in zip(c, c[1:]))
+
+    by_route = defaultdict(list)
+    for f in feats:
+        by_route[f["properties"]["route"]].append(f)
+    out = []
+    cell = 40.0
+    for route, fs in by_route.items():
+        lat0 = fs[0]["geometry"]["coordinates"][0][1]
+        segs, grid = [], defaultdict(list)
+
+        def add(coords):
+            c = [xy(x, y, lat0) for x, y in coords]
+            for (x1, y1), (x2, y2) in zip(c, c[1:]):
+                k = len(segs)
+                segs.append((x1, y1, x2, y2))
+                for gx in range(int(min(x1, x2) // cell) - 1, int(max(x1, x2) // cell) + 2):
+                    for gy in range(int(min(y1, y2) // cell) - 1, int(max(y1, y2) // cell) + 2):
+                        grid[(gx, gy)].append(k)
+
+        def covered(px, py):
+            for k in grid.get((int(px // cell), int(py // cell)), ()):
+                ax, ay, bx, by = segs[k]
+                vx, vy = bx - ax, by - ay
+                L2 = vx * vx + vy * vy
+                t = 0.0 if L2 < 1e-9 else max(0.0, min(1.0, ((px - ax) * vx + (py - ay) * vy) / L2))
+                if math.hypot(px - ax - t * vx, py - ay - t * vy) <= tol_m:
+                    return True
+            return False
+
+        props = fs[0]["properties"]
+        for f in sorted(fs, key=lambda f: -length(f["geometry"]["coordinates"])):
+            coords = f["geometry"]["coordinates"]
+            # polyligne densifiée (sommets d'origine + points tous les step_m), chaque point marqué couvert ou non
+            dense = []
+            for a, b in zip(coords, coords[1:]):
+                n = max(1, int(haversine(a[1], a[0], b[1], b[0]) // step_m))
+                for j in range(n):
+                    dense.append((a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n))
+            dense.append(tuple(coords[-1]))
+            flags = [covered(*xy(x, y, lat0)) for x, y in dense]
+            pieces, i = [], 0
+            while i < len(dense):
+                if flags[i]:
+                    i += 1
+                    continue
+                j = i
+                while j + 1 < len(dense) and not flags[j + 1]:
+                    j += 1
+                piece = dense[max(0, i - 1): j + 2]  # raccord avec la portion déjà tracée
+                if len(piece) >= 2 and length(piece) >= min_run_m:
+                    pieces.append(simplify([(round(x, 5), round(y, 5)) for x, y in piece], 2.0))
+                i = j + 1
+            for p in pieces:  # ajoutées après coup : un tracé ne se couvre pas lui-même en cours de route
+                add(p)
+                out.append({"type": "Feature", "properties": {"route": route, "color": props.get("color"), "kind": props.get("kind")},
+                            "geometry": {"type": "LineString", "coordinates": p}})
+    return out
+
 
 # ---------------------------------------------------------------- portions à sens unique
 
@@ -1282,6 +1380,12 @@ def main():
     log(f"sens unique : {len(arrows)} portions où l'aller et le retour ne suivent pas le même chemin")
     with open(os.path.join(args.out, "lines.geojson"), "w", encoding="utf-8") as fh:
         json.dump({"type": "FeatureCollection", "features": feats}, fh, separators=(",", ":"))
+    # tracé d'affichage : un seul trait par rue et par ligne (aller, retour et variantes confondus)
+    shown = display_lines(feats)
+    with open(os.path.join(args.out, "lines-display.geojson"), "w", encoding="utf-8") as fh:
+        json.dump({"type": "FeatureCollection", "features": shown}, fh, separators=(",", ":"))
+    log(f"tracé d'affichage : {len(feats)} tracés → {len(shown)} portions, "
+        f"{os.path.getsize(os.path.join(args.out, 'lines-display.geojson')) // 1024} Ko")
 
     # tarifs (fichier relevé à part, en attendant un flux GTFS-Fares publié par le réseau)
     if cfg.get("fares_file"):
