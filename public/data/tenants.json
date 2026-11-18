@@ -5,8 +5,8 @@
   "territory": "Annonay Rhône Agglo",
   "tagline": "Annonay, Davézieux, Boulieu, Roiffieux… et la vallée du Rhône",
   "lines": 69,
-  "stops": 754,
-  "updated": "2026-11-16"
+  "stops": 753,
+  "updated": "2026-11-18"
  },
  {
   "id": "paysdegex",
@@ -15,6 +15,6 @@
   "tagline": "Ornex, Ferney-Voltaire, Gex, Saint-Genis-Pouilly… et Genève",
   "lines": 73,
   "stops": 430,
-  "updated": "2026-11-17"
+  "updated": "2026-11-18"
  }
 ]

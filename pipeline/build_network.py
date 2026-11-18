@@ -705,6 +705,79 @@ def rail_route(feats, osrm_url, cache_path, radius=500, max_ratio=1.6, chunk=100
     log(f"tracés ferroviaires : {done} lignes TER tracées sur les voies, {kept} tronçons entre gares laissés droits (hors de l'extrait OSM)")
     return {"routed_features": done, "kept_straight": kept}
 
+# ---------------------------------------------------------------- corrections manuelles (éditeur de tracés)
+
+def load_corrections(path):
+    """Corrections saisies dans l'éditeur (editeur.html) : pipeline/tenants/<territoire>-corrections.json."""
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh).get("corrections", [])
+
+
+def _along(line, p, min_along=0.0, max_off=60.0):
+    """Projection de p sur la polyligne (lon, lat) à partir de l'abscisse min_along : (abscisse, segment, point)
+    de l'écart le plus faible sous max_off, en privilégiant la première occurrence (lignes qui repassent)."""
+    lat0 = p[1]
+    kx, ky = 111320 * math.cos(math.radians(lat0)), 110540
+    best, acc = None, 0.0
+    for i in range(len(line) - 1):
+        ax, ay = (line[i][0] - p[0]) * kx, (line[i][1] - p[1]) * ky
+        bx, by = (line[i + 1][0] - p[0]) * kx, (line[i + 1][1] - p[1]) * ky
+        vx, vy = bx - ax, by - ay
+        L = math.hypot(vx, vy)
+        t = 0.0 if L < 1e-9 else max(0.0, min(1.0, -(ax * vx + ay * vy) / (L * L)))
+        off = math.hypot(ax + t * vx, ay + t * vy)
+        s = acc + t * L
+        if s >= min_along - 1e-6 and off <= max_off and (best is None or off < best[3] - 5):
+            q = (line[i][0] + t * (line[i + 1][0] - line[i][0]), line[i][1] + t * (line[i + 1][1] - line[i][1]))
+            best = (s, i, q, off)
+            if off < 5:
+                break  # première occurrence nette : on s'arrête (un tracé peut repasser par le même arrêt)
+        acc += L
+    return best
+
+
+def apply_corrections(feats, corrections, key_of, near_m=60.0):
+    """
+    Remplace, dans chaque tracé, la portion entre deux arrêts consécutifs par le tronçon corrigé à la main
+    (clé : ligne, type, arrêts de départ et d'arrivée par leur position). Une correction vaut pour toutes
+    les variantes et tous les tracés qui enchaînent ces deux arrêts ; elle survit au renouvellement des
+    horaires (pas d'identifiant d'arrêt). Renvoie (tracés modifiés, corrections jamais appliquées).
+    """
+    if not corrections:
+        return 0, []
+    used, changed = set(), 0
+    for f in feats:
+        stops = f.get("_stops")
+        if not stops:
+            continue
+        mine = [c for c in corrections if (c["route"], c.get("kind", "urbain")) == key_of(f["properties"]["route"])]
+        if not mine:
+            continue
+        line = [tuple(x) for x in f["geometry"]["coordinates"]]
+        modified = False
+        for c in mine:
+            fa, fb = c["from"], c["to"]
+            for i in range(len(stops) - 1):
+                a, b = stops[i], stops[i + 1]
+                if haversine(a[1], a[0], fa["lat"], fa["lon"]) > near_m or haversine(b[1], b[0], fb["lat"], fb["lon"]) > near_m:
+                    continue
+                pa = _along(line, a)
+                pb = _along(line, b, pa[0] if pa else 0.0) if pa else None
+                if not pa or not pb or pb[0] <= pa[0]:
+                    continue
+                corr = [tuple(x) for x in c["coords"]]
+                line = line[:pa[1] + 1] + [pa[2]] + corr + [pb[2]] + line[pb[1] + 1:]
+                used.add(c["id"])
+                modified = True
+        if modified:
+            f["geometry"]["coordinates"] = [[round(x, 6), round(y, 6)] for x, y in line]
+            f["properties"]["corrected"] = 1
+            changed += 1
+    return changed, [c for c in corrections if c["id"] not in used]
+
+
 # ---------------------------------------------------------------- tracé d'affichage : un seul trait par rue
 
 def display_lines(feats, tol_m=25.0, step_m=10.0, min_run_m=40.0):
@@ -1369,6 +1442,17 @@ def main():
                     n_sp += 1
         if match_cfg.get("drop_spurs"):
             log(f"éperons : {n_sp} tracés nettoyés")
+    # tracés calculés, avant corrections manuelles (base de pipeline/apply_corrections.py, réversible)
+    with open(os.path.join(args.cache, f"{cfg['tenant']}-lines-auto.json"), "w", encoding="utf-8") as fh:
+        json.dump({"type": "FeatureCollection", "features": feats}, fh, separators=(",", ":"))
+    # corrections manuelles de l'éditeur de tracés (editeur.html), en dernier : elles priment
+    corr_path = os.path.join(os.path.dirname(os.path.abspath(args.tenant)), f"{cfg['tenant']}-corrections.json")
+    corrections = load_corrections(corr_path)
+    if corrections:
+        n_corr, unused = apply_corrections(feats, corrections, lambda ri: (routes[route_ids[ri]]["short"], routes[route_ids[ri]]["kind"]))
+        log(f"corrections manuelles : {len(corrections) - len(unused)}/{len(corrections)} appliquées, {n_corr} tracés modifiés")
+        for c in unused:
+            log(f"  ⚠ correction sans effet (arrêts introuvables sur la ligne {c['route']}) : {c['from']['name']} → {c['to']['name']}")
     for f in feats:
         f.pop("_stops", None)
     with open(os.path.join(args.out, "network.json"), "w", encoding="utf-8") as fh:

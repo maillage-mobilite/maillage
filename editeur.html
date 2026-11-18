@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Éditeur de tracés · Maillage</title>
+  </head>
+  <body>
+    <div id="app" class="ed">
+      <aside class="ed-side" aria-label="Choix de la ligne et du tronçon">
+        <header class="ed-head">
+          <h1>Éditeur de tracés</h1>
+          <p class="ed-muted">Corrections par tronçon entre deux arrêts. Poste local uniquement.</p>
+        </header>
+        <div class="ed-row">
+          <label>Territoire <select id="reseau"></select></label>
+          <label>Ligne <select id="ligne"></select></label>
+        </div>
+        <div class="ed-tabs" role="tablist">
+          <button role="tab" id="tab-troncons" aria-selected="true">Tronçons de la ligne</button>
+          <button role="tab" id="tab-suspects" aria-selected="false">À revoir (toutes lignes)</button>
+        </div>
+        <ul id="liste" class="ed-list" aria-label="Tronçons"></ul>
+        <section id="edition" class="ed-edit" hidden aria-label="Édition du tronçon">
+          <h2 id="ed-titre"></h2>
+          <p id="ed-info" class="ed-muted"></p>
+          <div class="ed-tools" role="group" aria-label="Outils">
+            <button id="m-points" class="on" aria-pressed="true" title="Déplacer les points ; clic sur le trait pour en ajouter ; clic droit ou Alt+clic sur un point pour le supprimer">Déplacer les points</button>
+            <button id="m-route" aria-pressed="false" title="Cliquez un ou plusieurs points de passage : le tronçon suit la chaussée par ces points">Suivre la route par ici</button>
+            <button id="m-main" aria-pressed="false" title="Repart d'une ligne droite ; chaque clic ajoute un point avant l'arrivée">Tracer à la main</button>
+          </div>
+          <p id="ed-aide" class="ed-aide"></p>
+          <div class="ed-actions">
+            <button id="b-annuler">Annuler les modifications</button>
+            <button id="b-enregistrer" class="primary">Enregistrer la correction</button>
+            <button id="b-supprimer" class="danger" hidden>Revenir au calcul automatique</button>
+          </div>
+        </section>
+        <footer class="ed-foot">
+          <button id="b-appliquer" class="primary">Appliquer à la carte</button>
+          <p id="statut" class="ed-muted" role="status" aria-live="polite"></p>
+        </footer>
+      </aside>
+      <main id="carte" class="ed-map" aria-label="Carte"></main>
+    </div>
+    <script type="module" src="/src/editor.ts"></script>
+  </body>
+</html>

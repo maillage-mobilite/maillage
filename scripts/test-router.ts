@@ -10,8 +10,9 @@ const place = (q: string): Point => {
   if (!p) throw new Error('lieu introuvable : ' + q)
   return { lat: p.lat, lon: p.lon, label: p.name }
 }
-const DATE = '2026-11-16' // lundi
-const now = { date: '2026-11-13', sec: 9 * 3600 }
+// premier lundi de la période couverte par les données (elles sont reconstruites chaque mois : pas de date fixe)
+const DATE = (() => { let d = addDays(net.windowStart, 1); while (new Date(d + 'T12:00:00Z').getUTCDay() !== 1) d = addDays(d, 1); return d })()
+const now = { date: net.windowStart, sec: 9 * 3600 }
 let failures = 0
 const check = (cond: boolean, msg: string) => { if (!cond) { failures++; console.log('  ✗', msg) } }
 
@@ -50,7 +51,7 @@ show(gare, { lat: term.lat, lon: term.lon, label: term.name + ' (terminus L17)' 
 show(place('Varagnes'), place('Hopital'), 8 * 3600)
 const r = show(place('Vanosc - Mairie'), gare, 7 * 3600, { includeTad: true })
 check(r.journeys.some(j => j.hasBooking), 'le TAD devrait apparaître depuis Vanosc')
-const late = show(place('Vanosc - Mairie'), gare, 7 * 3600, { includeTad: true }, '2026-11-13')
+const late = show(place('Vanosc - Mairie'), gare, 7 * 3600, { includeTad: true }, now.date)
 // le jour même : TAD exclu (délai dépassé) → bascule sur le lendemain, où il redevient réservable
 check(late.notes.some(n => n.includes('plus réservable')), 'le délai de réservation TAD devrait être signalé')
 check(late.journeys.every(j => j.dep >= 86400), "aucun trajet TAD ne doit être proposé le jour même")

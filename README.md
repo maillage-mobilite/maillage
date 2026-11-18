@@ -32,6 +32,8 @@ Puis ouvrir http://localhost:5199 (de préférence en vue mobile) : la page d'ac
 
 **Trains suisses (Pays de Gex).** Le flux `train-ch` part de l'horaire national suisse (opentransportdata.swiss, ~400 Mo pour deux années d'horaires, dont 3,7 Go de `stop_times` décompressés). `pipeline/extract_gtfs.py` n'en garde, en une minute, que les trains qui passent à moins de 13 km de Genève (≈ 4 Mo). Le Léman Express, les TER et les trains SNCF sont écartés : ils figurent déjà dans le flux SNCF. Les sources sont retéléchargées au plus tous les 3 jours. Chaque année, avant le changement de service de décembre, il faut ajouter l'horaire de l'année suivante (`timetable-AAAA-gtfs2020`) dans `pipeline/tenants/paysdegex.json` ; l'alerte d'expiration (`npm run check:data`) le rappelle 21 jours avant. Les lignes suisses sont tracées de gare en gare (le moteur ferroviaire OSRM ne couvre que Rhône-Alpes).
 
+Éditeur de tracés (poste local, avec `npm run dev`) : http://localhost:5199/editeur.html, voir [EXPLOITATION.md](EXPLOITATION.md).
+
 Autres commandes : `npm run test:router` (tests du calculateur sur les vraies données), `npm run check:data` (alerte d'expiration des données), `npm run build` (version statique dans `dist/`, pages `index.html` et `widget.html`) et `./deploy/deploy-vps.sh` (publication sur maillage.tuatam.fr).
 
 ## Ce que montre la démo
