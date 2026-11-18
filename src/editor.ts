@@ -9,7 +9,7 @@ import './editor.css'
 type LngLat = [number, number]
 interface Stop { name: string; lat: number; lon: number }
 interface Correction { id: string; route: string; kind: string; from: Stop; to: Stop; coords: LngLat[]; mode: string; updated: string }
-interface Troncon { key: string; a: Stop; b: Stop; trips: number; order: number; slice: LngLat[] | null; flags: string[]; score: number
+interface Troncon { key: string; a: Stop; b: Stop; trips: number; order: number; dir: number; slice: LngLat[] | null; flags: string[]; score: number
   /** milieu du plus long segment droit (> 350 m), à confirmer auprès du moteur OSRM */
   straight?: { mid: LngLat; len: number } }
 interface Route { i: number; short: string; long: string; color: string; text: string; kind: string }
@@ -93,7 +93,8 @@ function diagnose(c: LngLat[], a: Stop, b: Stop) {
 let reseau = ''
 let routes: Route[] = []
 let stops: Stop[] = []
-let trips: [number, number[]][] = []
+let trips: [number, number[], number, string][] = [] // ligne, arrêts, sens, destination
+let sens = 0 // sens affiché dans la liste des tronçons
 let lines: { route: number; coords: LngLat[] }[] = []
 /** tracé d'affichage de l'application (un seul trait par rue) */
 let shown: { route: number; coords: LngLat[] }[] = []
@@ -227,7 +228,7 @@ async function loadReseau(id: string) {
   ])
   routes = net.routes.map((r: any[], i: number) => ({ i, short: r[0], long: r[1], color: '#' + r[2], text: '#' + r[3], kind: r[4] }))
   stops = net.stops.map((s: any[]) => ({ name: s[0], lat: s[1], lon: s[2] }))
-  trips = net.trips.map((t: any[]) => [t[0], t[4]])
+  trips = net.trips.map((t: any[]) => [t[0], t[4], Number(t[3]) || 0, t[2]])
   lines = geo.features.map((f: any) => ({ route: f.properties.route, coords: f.geometry.coordinates }))
   shown = disp.features.map((f: any) => ({ route: f.properties.route, coords: f.geometry.coordinates }))
   corrections = corr.corrections ?? []
@@ -248,12 +249,12 @@ function tronconsOf(r: Route): Troncon[] {
   const geoms = lines.filter(l => same.includes(l.route)).map(l => l.coords)
   const out = new Map<string, Troncon>()
   const longest = trips.filter(t => same.includes(t[0])).sort((a, b) => b[1].length - a[1].length)
-  longest.forEach(([, st]) => st.slice(0, -1).forEach((s, k) => {
+  longest.forEach(([, st, dir]) => st.slice(0, -1).forEach((s, k) => {
     const a = stops[s], b = stops[st[k + 1]]
     const key = keyOf(r, a, b)
     const t = out.get(key)
     if (t) { t.trips++; return }
-    out.set(key, { key, a, b, trips: 1, order: out.size, slice: null, flags: [], score: 0 })
+    out.set(key, { key, a, b, trips: 1, order: out.size, dir, slice: null, flags: [], score: 0 })
   }))
   for (const t of out.values()) {
     for (const g of geoms) { const s = slice(g, [t.a.lon, t.a.lat], [t.b.lon, t.b.lat]); if (s) { t.slice = s; break } }
@@ -293,6 +294,20 @@ function selectRoute(i: number, fit = false) {
   const ids = new Set<number>(trips.filter(t => same.includes(t[0])).flatMap(t => t[1]))
   src('route-stops').setData({ type: 'FeatureCollection', features: [...ids].map(s => ({ type: 'Feature', properties: { name: stops[s].name }, geometry: { type: 'Point', coordinates: [stops[s].lon, stops[s].lat] } })) } as any)
   troncons = tronconsOf(current)
+  // sens de la ligne : destination la plus fréquente de chaque sens, nombre de tronçons
+  const dirs = [...new Set(troncons.map(t => t.dir))].sort()
+  const dest = (d: number) => {
+    const c = new Map<string, number>()
+    for (const t of trips) if (same.includes(t[0]) && t[2] === d) c.set(t[3], (c.get(t[3]) ?? 0) + 1)
+    return [...c.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? `sens ${d + 1}`
+  }
+  if (!dirs.includes(sens)) sens = dirs[0] ?? 0
+  $('sens').innerHTML = dirs.map(d => `<button data-d="${d}" aria-pressed="${d === sens}" class="${d === sens ? 'on' : ''}">Vers ${esc(dest(d))} <span class="ed-muted">(${troncons.filter(t => t.dir === d).length})</span></button>`).join('')
+  $('sens').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    sens = Number(b.dataset.d)
+    $('sens').querySelectorAll('button').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)) })
+    tab = 'troncons'; syncTabs(); closeEdit(); renderList()
+  }))
   checkStraight(troncons).then(() => { if (tab === 'troncons') renderList() })
   if (fit && ids.size) { const b = new LngLatBounds(); for (const s of ids) b.extend([stops[s].lon, stops[s].lat]); map.fitBounds(b, { padding: 40, duration: 0 }) }
   closeEdit()
@@ -314,7 +329,7 @@ async function computeSuspects() {
 function renderList() {
   const ul = $('liste')
   let items: { r: Route; t: Troncon; n: string }[]
-  if (tab === 'troncons' && current) items = troncons.map((t, k) => ({ r: current!, t, n: String(k + 1) }))
+  if (tab === 'troncons' && current) items = troncons.filter(t => t.dir === sens).map((t, k) => ({ r: current!, t, n: String(k + 1) }))
   else items = (suspects ?? []).filter(x => !corrOf(x.r, x.t))
   ul.innerHTML = items.map(({ r, t, n }, k) => {
     const c = corrOf(r, t), sp = c ? undefined : spanOf(r, t)
@@ -325,7 +340,10 @@ function renderList() {
   ul.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     const it = items[Number(b.dataset.k)]
     if (current?.i !== it.r.i) { current = it.r; ($('ligne') as HTMLSelectElement).value = String(it.r.i); troncons = tronconsOf(it.r); selectRouteKeepTab(it.r.i) }
-    openEdit(troncons.find(x => x.key === it.t.key) ?? it.t)
+    const tt = troncons.find(x => x.key === it.t.key) ?? it.t
+    sens = tt.dir
+    $('sens').querySelectorAll('button').forEach(x => { const on = Number((x as HTMLElement).dataset.d) === sens; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)) })
+    openEdit(tt)
     renderList()
   }))
 }

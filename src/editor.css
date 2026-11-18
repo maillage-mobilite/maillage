@@ -37,3 +37,8 @@ button:disabled { opacity: .5; cursor: default; }
 .ed-blocked { padding: 40px; font-size: 16px; }
 .ed-toggle { border: 1px solid var(--line); background: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--muted); }
 .ed-toggle[aria-pressed="true"] { background: #111827; color: #fff; border-color: #111827; }
+.ed-sens { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px 2px; }
+.ed-sens:empty { display: none; }
+.ed-sens button { border: 1px solid var(--line); background: #fff; padding: 5px 10px; border-radius: 999px; cursor: pointer; font-size: 13px; }
+.ed-sens button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ed-sens button.on .ed-muted { color: #d6e4e3; }
