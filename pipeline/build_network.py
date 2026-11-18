@@ -841,9 +841,16 @@ def apply_corrections(feats, corrections, key_of, near_m=60.0):
         for c in mine:
             fa, fb = c["from"], c["to"]
             for i in range(len(stops) - 1):
-                a, b = stops[i], stops[i + 1]
-                if haversine(a[1], a[0], fa["lat"], fa["lon"]) > near_m or haversine(b[1], b[0], fb["lat"], fb["lon"]) > near_m:
+                a = stops[i]
+                if haversine(a[1], a[0], fa["lat"], fa["lon"]) > near_m:
                     continue
+                # arrivée : arrêt suivant, ou jusqu'à 3 arrêts plus loin (correction qui couvre plusieurs tronçons,
+                # ex. une boucle de desserte : les arrêts intermédiaires restent desservis au passage)
+                j = next((j for j in range(i + 1, min(i + 4, len(stops)))
+                          if haversine(stops[j][1], stops[j][0], fb["lat"], fb["lon"]) <= near_m), None)
+                if j is None:
+                    continue
+                b = stops[j]
                 pa = _along(line, a)
                 pb = _along(line, b, pa[0] if pa else 0.0) if pa else None
                 if not pa or not pb or pb[0] <= pa[0]:

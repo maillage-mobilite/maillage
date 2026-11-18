@@ -112,6 +112,10 @@ const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt
 const keyOf = (r: Route, a: Stop, b: Stop) => `${r.short}|${r.kind}|${a.name}|${b.name}`
 const corrOf = (r: Route, t: Troncon) => corrections.find(c => c.route === r.short && c.kind === r.kind
   && dist([c.from.lon, c.from.lat], [t.a.lon, t.a.lat]) < 60 && dist([c.to.lon, c.to.lat], [t.b.lon, t.b.lat]) < 60)
+/** Correction qui couvre ce tronçon parmi d'autres (de « from » à un arrêt plus loin, ex. une boucle de desserte). */
+const nearLine = (c: LngLat[], p: LngLat) => Math.min(...c.slice(1).map((q, i) => project([c[i], q], p, 0, Infinity)?.off ?? Infinity))
+const spanOf = (r: Route, t: Troncon) => corrections.find(c => c.route === r.short && c.kind === r.kind && !corrOf(r, t)
+  && nearLine(c.coords, [t.a.lon, t.a.lat]) < 60 && nearLine(c.coords, [t.b.lon, t.b.lat]) < 60)
 
 // ------------------------------------------------------------------ carte
 const EMPTY = { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection
@@ -301,7 +305,7 @@ async function computeSuspects() {
   for (const r of routes) {
     if (r.kind === 'train' || seen.has(`${r.short}|${r.kind}`)) continue
     seen.add(`${r.short}|${r.kind}`)
-    for (const t of tronconsOf(r)) if (!corrOf(r, t)) all.push({ r, t, n: '' })
+    for (const t of tronconsOf(r)) if (!corrOf(r, t) && !spanOf(r, t)) all.push({ r, t, n: '' })
   }
   await checkStraight(all.map(x => x.t))
   suspects = all.filter(x => x.t.score > 0).sort((a, b) => b.t.score - a.t.score).slice(0, 60)
@@ -313,8 +317,8 @@ function renderList() {
   if (tab === 'troncons' && current) items = troncons.map((t, k) => ({ r: current!, t, n: String(k + 1) }))
   else items = (suspects ?? []).filter(x => !corrOf(x.r, x.t))
   ul.innerHTML = items.map(({ r, t, n }, k) => {
-    const c = corrOf(r, t)
-    const badges = [...(c ? ['<span class="badge ok">corrigé</span>'] : []), ...t.flags.map(f => `<span class="badge">${esc(f)}</span>`)].join('')
+    const c = corrOf(r, t), sp = c ? undefined : spanOf(r, t)
+    const badges = [...(c ? ['<span class="badge ok">corrigé</span>'] : sp ? [`<span class="badge ok" title="${esc(sp.from.name)} → ${esc(sp.to.name)}">dans une correction</span>`] : []), ...t.flags.map(f => `<span class="badge">${esc(f)}</span>`)].join('')
     const pill = tab === 'suspects' ? `<span class="pill" style="background:${r.color};color:${r.text}">${esc(r.short)}</span>` : ''
     return `<li><button data-k="${k}" class="${sel?.key === t.key ? 'on' : ''}"><span class="n">${n}</span><span class="t">${pill}${esc(t.a.name)} → ${esc(t.b.name)}</span><span class="b">${badges}</span></button></li>`
   }).join('') || '<li class="ed-muted" style="padding:8px">Rien à revoir.</li>'
@@ -356,6 +360,8 @@ function openEdit(t: Troncon) {
   modified = false
   $('edition').hidden = false
   $('ed-titre').textContent = `${current?.short} · ${t.a.name} → ${t.b.name}`
+  const sp = !c && current ? spanOf(current, t) : undefined
+  if (sp) status(`Ce tronçon est déjà couvert par la correction « ${sp.from.name} → ${sp.to.name} » (pipeline/tenants/${reseau}-corrections.json) : la modifier là plutôt qu'ici.`)
   $('b-supprimer').hidden = !c
   ;($('b-enregistrer') as HTMLButtonElement).disabled = true
   src('sel').setData(t.slice ? { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: t.slice } } as any : EMPTY)
