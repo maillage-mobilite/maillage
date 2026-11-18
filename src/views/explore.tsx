@@ -8,6 +8,7 @@ import { Empty, Header, Icon, Pill, ReportLink, TheoNotice, When, usePreview } f
 import { TrainBoard } from '../trains'
 import { plan, type Journey } from '../router'
 import { LOCATION_META, type SavedLocation } from '../store'
+import { lineScheme, schemeWorthShowing, shareLabel, type Scheme, type Variant } from '../lineScheme'
 import type { Favorites } from '../store'
 
 type Now = { date: string; sec: number }
@@ -290,6 +291,7 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
   const isFav = fav.routes.includes(key)
   const booking = r.kind === 'tad' ? net.booking['tad'] : null
   const dirLabel = (d: number) => { const t = referenceTrip(net, id, d); return t ? `vers ${t.headsign}` : '' }
+  const scheme = useMemo(() => lineScheme(net, id), [net, id])
 
   return (
     <div class="sheet-body">
@@ -308,6 +310,7 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
         <button role="tab" aria-selected={dir === 0} class={dir === 0 ? 'on' : ''} onClick={() => { setDir(0); setSel(null); setAtPlace(null) }}>{dirLabel(0) || 'Sens 1'}</button>
         {hasDir1 && <button role="tab" aria-selected={dir === 1} class={dir === 1 ? 'on' : ''} onClick={() => { setDir(1); setSel(null); setAtPlace(null) }}>{dirLabel(1)}</button>}
       </div>
+      {schemeWorthShowing(scheme) && <LineSchemeView net={net} s={scheme} color={r.color} onPlace={onPlace} />}
       <label class="field">
         <span>À l'arrêt</span>
         <select value={at} onChange={e => { setAtPlace(+(e.target as HTMLSelectElement).value); setSel(null) }}>
@@ -349,4 +352,53 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
       <TheoNotice />
     </div>
   )
+}
+
+/** Schéma de la ligne : tronc commun, tronçons propres à l'aller ou au retour, variantes. */
+function LineSchemeView({ net, s, color, onPlace }: { net: Network; s: Scheme; color: string; onPlace: (i: number) => void }) {
+  const name = (p: number) => net.places[p].name
+  const splits = s.blocks.filter(b => b.kind === 'split').length
+  const down = `vers ${name(s.ends[1])}`, up = `vers ${name(s.ends[0])}`
+  const stops = (list: number[]) => (
+    <ol class="sch-stops">
+      {list.length ? list.map(p => <li key={p}><span class="sch-dot" /><button class="link" onClick={() => onPlace(p)}>{name(p)}</button></li>)
+        : <li class="sch-direct"><span class="sch-dot" />sans arrêt</li>}
+    </ol>
+  )
+  const sub = [splits ? `${splits} tronçon${splits > 1 ? 's' : ''} différent${splits > 1 ? 's' : ''} à l'aller et au retour` : '',
+    s.variants.length ? `${s.variants.length} variante${s.variants.length > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ')
+  return (
+    <details class="options scheme" style={{ '--route': color } as any}>
+      <summary><Icon name="route" size={16} /> Schéma de la ligne <small>{sub}</small></summary>
+      {splits > 0 && <p class="sch-legend">Lecture de haut en bas : <strong>↓ {down}</strong>. Le retour <strong>↑ {up}</strong> se lit de bas en haut.</p>}
+      <div class="sch">
+        {s.blocks.map((b, k) => b.kind === 'common'
+          ? <div key={k} class="sch-common">{splits > 0 && <span class="sch-tag">les deux sens</span>}{stops(b.places)}</div>
+          : <div key={k} class="sch-split">
+              <div class="sch-col"><span class="sch-tag">↓ {down}</span>{stops(b.aller)}</div>
+              <div class="sch-col"><span class="sch-tag">↑ {up}</span>{stops(b.retour)}</div>
+            </div>)}
+      </div>
+      {s.variants.length > 0 && (
+        <>
+          <h4 class="sch-h">Variantes</h4>
+          <ul class="sch-var">
+            {s.variants.map((v, k) => <li key={k}><span class="sch-tag">{v.dir < 0 ? 'les deux sens' : v.dir === 0 ? `↓ ${down}` : `↑ ${up}`}</span> {cap(variantText(v, name))} <small>({shareLabel(v.share)})</small></li>)}
+          </ul>
+        </>
+      )}
+    </details>
+  )
+}
+
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+
+function variantText(v: Variant, name: (p: number) => string): string {
+  const list = (ps: number[]) => ps.map(name).join(', ')
+  if (v.kind === 'partiel') return v.dir < 0 ? `entre ${name(v.from)} et ${name(v.to)} seulement` : `de ${name(v.from)} à ${name(v.to)} seulement`
+  if (v.kind === 'prolongement') {
+    if (v.to < 0) return `prolongée jusqu'à ${name(v.via[v.via.length - 1])}${v.via.length > 1 ? ` par ${list(v.via.slice(0, -1))}` : ''}`
+    return `part de ${name(v.via[0])}${v.via.length > 1 ? ` par ${list(v.via.slice(1))}` : ''}`
+  }
+  return `passe par ${list(v.via)}, entre ${name(v.from)} et ${name(v.to)}`
 }

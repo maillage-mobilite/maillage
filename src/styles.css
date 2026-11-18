@@ -431,3 +431,24 @@ table.quality td { padding: 5px 4px; border-bottom: 1px solid var(--line); }
 .poi-legend-label { flex: 1; font-size: 14px; }
 .poi-legend-n { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .poi-legend-check { width: 16px; color: var(--brand); display: inline-flex; }
+/* schéma de ligne (fiche ligne) */
+.scheme { margin: 4px 0 12px; }
+.scheme summary { flex-wrap: wrap; padding: 8px 0; }
+.scheme summary small { flex-basis: 100%; padding-left: 22px; }
+.sch { isolation: isolate; }
+.sch-legend { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+.sch-tag { display: inline-block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 2px 26px; }
+.sch-var .sch-tag { margin: 0 4px 0 0; }
+.sch-stops { list-style: none; margin: 0; padding: 0; }
+.sch-stops li { position: relative; display: flex; align-items: center; gap: 8px; min-height: 30px; padding-left: 4px; font-size: 14px; }
+.sch-stops li::before { content: ''; position: absolute; left: 9px; top: 0; bottom: 0; width: 4px; background: var(--route, var(--line)); }
+.sch-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 3px solid var(--route, var(--line)); z-index: 1; margin-left: 2px; }
+.sch-stops .link { text-align: left; color: var(--text); text-decoration: none; padding: 4px 0; }
+.sch-direct { color: var(--muted); font-style: italic; }
+.sch-direct::before { background: repeating-linear-gradient(var(--route, var(--line)) 0 4px, transparent 4px 8px) !important; }
+.sch-split { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border-left: 2px dashed var(--line); border-right: 2px dashed var(--line); border-radius: 10px; padding: 2px 4px; margin: 4px 0; background: var(--surface-2); }
+.sch-col { min-width: 0; }
+.sch-col .sch-tag { margin-left: 4px; }
+.sch-h { font-size: 13px; margin: 12px 0 4px; }
+.sch-var { margin: 0; padding-left: 0; list-style: none; font-size: 14px; display: grid; gap: 6px; }
+.sch-var small { color: var(--muted); }
