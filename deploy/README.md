@@ -15,7 +15,10 @@ Même schéma que les autres sites statiques du VPS Tuatam (voir `/srv/sites/REA
 cd demonstrateur && ./deploy/deploy-vps.sh
 ```
 
-`--config` envoie aussi `compose*.yml` et `nginx.conf` puis relance le conteneur. Pour rafraîchir les horaires : `npm run data` avant.
+Le Mac envoie le code (dépôt nu `/srv/sites/maillage/depot.git`) ; **le VPS construit et publie** (`deploy/vps/publier.sh`,
+unités systemd `maillage-*`), après contrôle des données, tests du calculateur et build. `--donnees` force la mise à jour
+des horaires, `--retour` remet les données précédentes, `--config` envoie aussi `compose*.yml` et `nginx.conf` puis relance
+le conteneur. Mise à jour automatique chaque matin et e-mails : [../EXPLOITATION.md](../EXPLOITATION.md), section 3.
 
 ## Comptes d'accès
 
@@ -70,8 +73,8 @@ Ni adresse IP, ni cookie, ni robots. On compte donc des affichages, pas des pers
 
 ## Alerte d'expiration des données
 
-`npm run check:data` contrôle, pour chaque territoire, la fin de validité des flux GTFS, la fin de la fenêtre
+`check_data.py` contrôle, pour chaque territoire, la fin de validité des flux GTFS, la fin de la fenêtre
 d'horaires précalculée et la publication d'une nouvelle version sur data.gouv.fr (alerte à 21 jours).
-Une tâche planifiée GitLab (`.gitlab-ci.yml` à la racine du dépôt) le lance chaque matin : en cas d'alerte,
-elle échoue et GitLab envoie un e-mail. Remède : `npm run data`, vérifier, puis `./deploy/deploy-vps.sh`.
+Le VPS le lance chaque matin sur les données en ligne (`maillage-donnees.timer`, 5 h) : une nouvelle version
+déclenche la mise à jour, une échéance sans nouvelle version envoie un e-mail.
 Après l'expiration, l'encart affiche « horaires en cours de mise à jour » au lieu de « aucun départ ».

@@ -6,8 +6,8 @@
   "scripts": {
     "data": "npm run data:coqueligo && npm run data:paysdegex",
     "data:coqueligo": "python3 -I pipeline/build_network.py pipeline/tenants/coqueligo.json --cache .cache --out public/data/coqueligo && npm run data:pois -- public/data/coqueligo",
-    "data:paysdegex": "python3 -I pipeline/build_network.py pipeline/tenants/paysdegex.json --cache .cache --out public/data/paysdegex && npm run data:pois -- public/data/paysdegex && npm run data:widget-ornex",
-    "data:widget-ornex": "python3 -I pipeline/build_widget.py public/data/paysdegex --slug ornex --name Ornex --places \"Ornex, Fruitière\" \"Ornex, Les Roussets\" \"Ornex, Prénépla\"",
+    "data:paysdegex": "python3 -I pipeline/build_network.py pipeline/tenants/paysdegex.json --cache .cache --out public/data/paysdegex && npm run data:pois -- public/data/paysdegex && npm run data:encarts",
+    "data:encarts": "python3 -I pipeline/build_encarts.py public/data",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",

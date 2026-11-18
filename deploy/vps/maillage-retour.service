@@ -1,0 +1,16 @@
+[Unit]
+Description=Maillage : retour aux données de la publication précédente
+Wants=network-online.target
+After=network-online.target docker.service
+OnFailure=maillage-alerte@%n.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+SupplementaryGroups=docker
+WorkingDirectory=/srv/sites/maillage/depot
+ExecStart=/srv/sites/maillage/depot/demonstrateur/deploy/vps/publier.sh --retour
+# « + » : en root, pour msmtp ; n'envoie un e-mail que si de nouvelles données ont été publiées
+ExecStartPost=+/srv/sites/maillage/depot/demonstrateur/deploy/vps/alerte.sh changements
+TimeoutStartSec=5400
+Nice=10

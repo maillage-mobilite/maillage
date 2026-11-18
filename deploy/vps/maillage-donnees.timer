@@ -1,0 +1,10 @@
+[Unit]
+Description=Maillage : contrôle et mise à jour des horaires chaque matin (5 h, heure de Paris)
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 Europe/Paris
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

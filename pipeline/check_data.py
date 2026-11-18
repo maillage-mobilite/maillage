@@ -10,6 +10,8 @@ Code de sortie 1 s'il y a au moins une alerte : utilisé par la tâche planifié
 (.gitlab-ci.yml à la racine du dépôt), dont l'échec déclenche un e-mail de GitLab.
 
 Usage : python3 -I pipeline/check_data.py public/data [--days 21] [--offline]
+        python3 -I pipeline/check_data.py <données> --nouveautes   (code 3 si une nouvelle version est publiée,
+        0 sinon ; utilisé par deploy/vps/publier.sh pour déclencher une mise à jour sans attendre la semaine)
 """
 import argparse
 import datetime as dt
@@ -42,13 +44,14 @@ def main():
     ap.add_argument("datadir")
     ap.add_argument("--days", type=int, default=21, help="seuil d'alerte en jours (défaut 21)")
     ap.add_argument("--offline", action="store_true", help="ne pas interroger data.gouv.fr")
+    ap.add_argument("--nouveautes", action="store_true", help="signaler seulement les nouvelles versions publiées (code 3)")
     args = ap.parse_args()
 
     today = dt.datetime.now(ZoneInfo("Europe/Paris")).date()
     with open(os.path.join(args.datadir, "tenants.json"), encoding="utf-8") as fh:
         tenants = json.load(fh)
 
-    alerts, lines = [], []
+    alerts, lines, news = [], [], []
     for t in tenants:
         with open(os.path.join(args.datadir, t["id"], "network.json"), encoding="utf-8") as fh:
             net = json.load(fh)
@@ -77,6 +80,7 @@ def main():
             txt = f"  [{state}] {f['id']} : valable jusqu'au {end:%d/%m/%Y} ({fleft} j)" if end else f"  [{state}] {f['id']}"
             if newer:
                 txt += f" · nouvelle version publiée le {newer:%d/%m/%Y}"
+                news.append(f"{name} / {f['id']} : nouvelle version publiée le {newer:%d/%m/%Y}")
             lines.append(txt)
             if fleft is not None and fleft <= args.days:
                 if newer:
@@ -85,6 +89,10 @@ def main():
                     alerts.append(f"{name} / {f['id']} : expire le {end:%d/%m/%Y}, pas encore de nouvelle version publiée")
             elif newer:
                 alerts.append(f"{name} / {f['id']} : nouvelle version publiée le {newer:%d/%m/%Y}, relancer « npm run data » et déployer")
+
+    if args.nouveautes:
+        print("\n".join(news) if news else "Aucune nouvelle version publiée.")
+        sys.exit(3 if news else 0)
 
     print(f"Contrôle des données Maillage — {today:%d/%m/%Y} (seuil {args.days} jours)")
     print("\n".join(lines))

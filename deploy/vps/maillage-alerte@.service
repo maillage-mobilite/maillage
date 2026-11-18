@@ -1,0 +1,6 @@
+[Unit]
+Description=Maillage : e-mail d'alerte après l'échec de %i
+
+[Service]
+Type=oneshot
+ExecStart=/srv/sites/maillage/depot/demonstrateur/deploy/vps/alerte.sh echec %i
