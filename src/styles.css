@@ -5,6 +5,7 @@
   --text: #16201f;
   --muted: #5d6866;
   --line: #e2ded6;
+  --line-strong: #8a857c; /* bordure d'un contrôle : 3:1 au moins sur surface, bg et surface-2 */
   --brand: #0f3d3e;
   --brand-ink: #ffffff;
   --accent: #c2410c;
@@ -13,6 +14,7 @@
   --warn-ink: #7a4a00;
   --tad: #6b4fa0;
   --tad-bg: #f1ecfa;
+  --focus: #3d7df2; /* anneau de focus : 3:1 au moins sur surface, bg, surface-2 et brand */
   --radius: 14px;
   --shadow: 0 -6px 24px rgba(15, 30, 30, 0.14);
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -25,7 +27,7 @@ html, body, #app { height: 100%; margin: 0; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 16px; line-height: 1.4; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 a { color: var(--brand); }
-:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; border-radius: 6px; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
 h2, h3 { margin: 0; }
 code { font-size: 0.9em; }
 
@@ -127,7 +129,7 @@ button.card:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--lin
 .segmented button { flex: 1; padding: 9px 8px; border-radius: 9px; font-size: 14px; text-align: center; min-height: 40px; }
 .segmented button.on { background: var(--surface); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 .date-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted); }
-.chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 14px; min-height: 36px; color: var(--text); }
+.chip { border: 1px solid var(--line-strong); border-radius: 999px; padding: 6px 12px; font-size: 14px; min-height: 36px; color: var(--text); }
 .chip::first-letter { text-transform: uppercase; }
 .chip.on { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
 .time-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -292,7 +294,7 @@ table.quality td { padding: 5px 4px; border-bottom: 1px solid var(--line); }
 
 /* ------------------------------------------------ revue UX : fiche arrêt et fiche ligne */
 .actions.compact .btn { min-height: 42px; padding: 0 14px; }
-.btn.ghost { background: transparent; border: 1px solid var(--line); font-weight: 600; }
+.btn.ghost { background: transparent; border: 1px solid var(--line-strong); font-weight: 600; }
 .chip.more { border-style: dashed; font-weight: 600; min-height: 44px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .timeline li.here .tl-name { font-weight: 800; }
@@ -364,7 +366,7 @@ table.quality td { padding: 5px 4px; border-bottom: 1px solid var(--line); }
 .loc-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .loc-next { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 14px; }
 .loc-pills { display: inline-flex; gap: 4px; }
-.loc-invite { color: var(--muted); font-size: 14px; border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; }
+.loc-invite { color: var(--muted); font-size: 14px; border: 1px dashed var(--line-strong); border-radius: 12px; padding: 10px 12px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
 .then { color: var(--muted); font-size: 12.5px; }

@@ -1,6 +1,6 @@
 /* Espace mairie : écrans simples, lisibles, utilisables au clavier et sur téléphone. */
 :root {
-  color-scheme: light; --text: #16201f; --muted: #5d6866; --line: #dcd8cf; --bg: #f6f4ef; --surface: #fff;
+  color-scheme: light; --text: #16201f; --muted: #5d6866; --line: #dcd8cf; --line-strong: #8a857c; --focus: #3d7df2; --bg: #f6f4ef; --surface: #fff;
   --accent: #0f3d3e; --accent-ink: #fff; --warn: #9a3412; --warn-bg: #fdeee6; --ok: #166534; --ok-bg: #e3f4e8; --info-bg: #e8f0fb; --info: #1e40af;
 }
 * { box-sizing: border-box; }
@@ -26,13 +26,13 @@ h3 { font-size: 16px; margin: 16px 0 6px; }
 .m-field > span { font-weight: 600; font-size: 14px; }
 .m-field small { color: var(--muted); font-weight: 400; }
 input[type=text], input[type=email], input[type=date], input[type=url], input[type=tel], input[type=search], select, textarea {
-  width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); min-height: 44px;
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: var(--text); min-height: 44px;
 }
 textarea { min-height: 90px; resize: vertical; }
-input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .m-row { display: flex; gap: 12px; flex-wrap: wrap; }
 .m-row > * { flex: 1 1 180px; }
-.m-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; text-decoration: none; }
+.m-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); cursor: pointer; text-decoration: none; }
 .m-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .m-btn.danger { color: var(--warn); }
 .m-btn.small { min-height: 36px; padding: 4px 10px; font-size: 14px; }
@@ -51,13 +51,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .m-badge.ok { background: var(--ok-bg); color: var(--ok); }
 .m-badge.off { background: #eee; color: var(--muted); }
 .m-pills { display: flex; flex-wrap: wrap; gap: 6px; }
-.m-check { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; cursor: pointer; min-height: 36px; font-size: 14px; }
+.m-check { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; cursor: pointer; min-height: 36px; font-size: 14px; }
 .m-check input { margin: 0; width: 18px; height: 18px; }
 .m-check .pill { font-weight: 700; padding: 0 6px; border-radius: 4px; font-size: 13px; }
 fieldset { border: 0; padding: 0; margin: 12px 0; }
 legend { font-weight: 600; font-size: 14px; margin-bottom: 6px; padding: 0; }
 .m-radio { display: flex; gap: 8px; flex-wrap: wrap; }
-.m-radio label { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; min-height: 44px; }
+.m-radio label { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; cursor: pointer; min-height: 44px; }
 .m-bars { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; align-items: end; gap: 2px; height: 140px; padding-top: 8px; border-bottom: 1px solid var(--line); }
 .m-bars div { background: var(--accent); border-radius: 3px 3px 0 0; min-height: 1px; }
 .m-bars div.zero { background: var(--line); }
