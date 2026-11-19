@@ -134,6 +134,7 @@ function Shell({ net }: { net: Network }) {
   const [mapReady, setMapReady] = useState(false)
   const [tab, setTab] = useState<Tab>('explore')
   const [stack, setStack] = useState<Detail[]>([])
+  const basemapBtn = useRef<HTMLButtonElement>(null)
   const [trip, setTripState] = useState<TripState>(initialTrip)
   const setTrip = (u: (s: TripState) => TripState) => setTripState(u)
   const [focus, setFocus] = useState<{ lat: number; lon: number; zoom?: number; key: number } | null>(null)
@@ -201,6 +202,14 @@ function Shell({ net }: { net: Network }) {
   useEffect(() => { const f = () => setDesktop(isDesktop()); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f) }, [])
   const padding = desktop ? { top: 70, bottom: 20, left: 420 } : { top: 110, bottom: Math.min(sheetH, window.innerHeight * 0.62), left: 0 }
 
+  // titre de la page : l'écran courant, puis le territoire (RGAA 8.6)
+  const viewTitle = tab === 'explore'
+    ? detail?.kind === 'place' ? net.places[detail.id]?.name ?? 'Arrêt'
+      : detail?.kind === 'route' ? `Ligne ${net.routes[detail.id]?.short ?? ''} ${net.routes[detail.id]?.long ?? ''}`.trim()
+      : detail?.kind === 'sources' ? 'Sources et qualité des données' : detail?.kind === 'fares' ? 'Tarifs' : 'Explorer'
+    : tab === 'trip' ? (trip.to?.label ? `Itinéraire vers ${trip.to.label}` : 'Itinéraire') : tab === 'alerts' ? 'Info trafic' : 'Mes trajets'
+  useEffect(() => { document.title = `${viewTitle} · ${net.tenant.name} · ${BRAND.name}` }, [viewTitle])
+
   let content: ComponentChildren
   if (tab === 'explore') {
     if (detail?.kind === 'place') content = <PlaceView key={detail.id} net={net} id={detail.id} now={now} pos={pos} fav={fav} toggleFav={toggle} onBack={back} onRoute={openRoute} onGo={goTo} onFrom={goFrom} />
@@ -223,10 +232,12 @@ function Shell({ net }: { net: Network }) {
   return (
     <RoutePreview.Provider value={preview}>
     <div class={`shell${desktop ? ' desktop' : ''}${!desktop && snap === 'full' ? ' sheet-full' : ''}`}>
+      <a class="skip-link" href="#contenu" onClick={e => { e.preventDefault(); if (snap === 'peek') setSnap('half'); document.getElementById('contenu')?.focus() }}>Aller au contenu</a>
       {!mapReady && <div class="map-loading" role="status"><div class="spinner" /> Chargement de la carte…</div>}
       <MapView net={net} basemap={basemap} onReady={() => setMapReady(true)} user={pos} highlightRoute={highlightRoute} previewRoute={previewRoute} journey={journey} focus={focus} padding={padding} onPlace={openPlace} onRoute={openRoute} kinds={mapKinds.kinds}
         pois={pois} poiHidden={poiHidden} onPoi={p => goLocation({ lat: p.lat, lon: p.lon, name: p.name.toLowerCase().includes(p.commune.toLowerCase()) ? p.name : `${p.name}, ${p.commune}` })} />
       {previewRoute != null && previewRoute !== highlightRoute && <RoutePreviewCard net={net} route={previewRoute} now={now} />}
+      <header class="top-zone">
       <MapFilters net={net} pois={pois} {...mapKinds} legendOpen={legendOpen} onLegend={() => { setLegendOpen(o => !o); setBasemapOpen(false) }} />
       {legendOpen && pois && (
         <PoiLegend pois={pois} shown={mapKinds.kinds.includes('lieux')} onShown={() => mapKinds.toggle('lieux')}
@@ -236,12 +247,13 @@ function Shell({ net }: { net: Network }) {
         <span class="brand"><span class="brand-mark" aria-hidden="true" />{BRAND.name}<em>{net.tenant.name}</em></span>
         <span class="top-actions">
           <span class="basemap-wrap">
-            <button class="icon-btn floating" onClick={() => setBasemapOpen(o => !o)} aria-label="Fond de carte" aria-expanded={basemapOpen} aria-haspopup="menu"><Icon name="layers" /></button>
+            <button ref={basemapBtn} class="icon-btn floating" onClick={() => setBasemapOpen(o => !o)} aria-label="Fond de carte" aria-expanded={basemapOpen} aria-controls="basemap-menu"><Icon name="layers" /></button>
             {basemapOpen && (
-              <div class="basemap-menu" role="menu" aria-label="Fond de carte">
+              <div class="basemap-menu" id="basemap-menu" role="group" aria-label="Fond de carte"
+                onKeyDown={e => { if (e.key === 'Escape') { setBasemapOpen(false); basemapBtn.current?.focus() } }}>
                 {([['plan', 'Plan', 'Rues et lieux'], ['satellite', 'Satellite', 'Photos aériennes IGN'], ['velo', 'Vélo', 'Pistes et bandes cyclables']] as const).map(([k, label, sub]) => (
-                  <button key={k} role="menuitemradio" aria-checked={basemap === k} class={`basemap-opt${basemap === k ? ' on' : ''}`}
-                    onClick={() => { setBasemap(k); setBasemapOpen(false) }}>
+                  <button key={k} aria-pressed={basemap === k} class={`basemap-opt${basemap === k ? ' on' : ''}`}
+                    onClick={() => { setBasemap(k); setBasemapOpen(false); basemapBtn.current?.focus() }}>
                     <span class={`basemap-thumb thumb-${k}`} aria-hidden="true" />
                     <span><strong>{label}</strong><small>{sub}</small></span>
                   </button>
@@ -252,6 +264,7 @@ function Shell({ net }: { net: Network }) {
           <button class="icon-btn floating" onClick={locate} aria-label="Me localiser"><Icon name="locate" /></button>
         </span>
       </div>
+      </header>
       <Sheet snap={snap} setSnap={setSnap} onHeight={setSheetH} desktop={desktop} scrollKey={`${tab}|${stack.length}|${trip.selected}|${trip.booking}`}>
         {content}
       </Sheet>
@@ -340,7 +353,7 @@ function Sheet({ snap, setSnap, onHeight, desktop, scrollKey, children }: {
           <button class="handle-bar" onClick={cycle} aria-label={snap === 'full' ? 'Réduire le panneau' : 'Agrandir le panneau'} />
         </div>
       )}
-      <div class="sheet-scroll" ref={scroller}>{children}</div>
+      <main class="sheet-scroll" id="contenu" tabIndex={-1} ref={scroller as any}>{children}</main>
     </div>
   )
 }

@@ -129,6 +129,7 @@ export function MapView(props: MapProps) {
       // (tierce) dans DOM.sanitize, vulnérable jusqu'à MapLibre 6.4 (GHSA-jrc7-96c5-q579).
       // On le désactive et on affiche nous-mêmes les crédits, en texte échappé (voir plus bas).
       attributionControl: false,
+      locale: { 'Map.Title': 'Carte du réseau : flèches pour se déplacer, + et − pour zoomer' },
       dragRotate: false,
       pitchWithRotate: false,
     })
@@ -442,8 +443,8 @@ export function MapView(props: MapProps) {
   }, [props.focus?.key])
 
   return (
-    <>
-      <div ref={el} class="map" role="region" aria-label="Carte du réseau" />
+    <section class="map-zone" aria-label="Carte du réseau">
+      <div ref={el} class="map" />
       {hover && <LineTooltip net={props.net} pois={props.pois} hover={hover} onRoute={r => { setHover(null); props.onRoute(r) }} onPlace={pl => { setHover(null); props.onPlace(pl) }}
         onPoi={p => { setHover(null); props.onPoi(p) }} onClose={() => setHover(null)} />}
       <div class="map-credits">
@@ -452,7 +453,7 @@ export function MapView(props: MapProps) {
         © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">contributeurs OpenStreetMap</a>
         {props.basemap === 'plan' && <> · <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> · <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a></>}
       </div>
-    </>
+    </section>
   )
 }
 

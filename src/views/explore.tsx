@@ -310,9 +310,9 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
         </div>
       )}
       {r.kind === 'scolaire' && <p class="notice warn">Ligne scolaire : elle circule les jours d'école. L'accès des voyageurs non scolaires dépend du règlement du réseau{net.tenant.links.website ? <> (<a href={net.tenant.links.website} target="_blank" rel="noopener">site officiel</a>)</> : ''}.</p>}
-      <div class="segmented" role="tablist" aria-label="Sens">
-        <button role="tab" aria-selected={dir === 0} class={dir === 0 ? 'on' : ''} onClick={() => { setDir(0); setSel(null); setAtPlace(null) }}>{dirLabel(0) || 'Sens 1'}</button>
-        {hasDir1 && <button role="tab" aria-selected={dir === 1} class={dir === 1 ? 'on' : ''} onClick={() => { setDir(1); setSel(null); setAtPlace(null) }}>{dirLabel(1)}</button>}
+      <div class="segmented" role="group" aria-label="Sens">
+        <button aria-pressed={dir === 0} class={dir === 0 ? 'on' : ''} onClick={() => { setDir(0); setSel(null); setAtPlace(null) }}>{dirLabel(0) || 'Sens 1'}</button>
+        {hasDir1 && <button aria-pressed={dir === 1} class={dir === 1 ? 'on' : ''} onClick={() => { setDir(1); setSel(null); setAtPlace(null) }}>{dirLabel(1)}</button>}
       </div>
       {schemeWorthShowing(scheme) && <LineSchemeView net={net} s={scheme} color={r.color} onPlace={onPlace} />}
       <label class="field">

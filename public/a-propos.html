@@ -54,7 +54,7 @@
   <h2 id="donnees">Données et responsabilité</h2>
   <p>Les horaires sont les <strong>horaires théoriques</strong> publiés par les réseaux. Ils ne tiennent pas compte des retards, travaux ou déviations, sauf quand le réseau publie ces informations en temps réel (trains SNCF). <strong>En cas de doute, l'information officielle du réseau fait foi.</strong> Les données sont mises à jour automatiquement chaque jour où un réseau publie une nouvelle version, et au moins chaque semaine ; un contrôle bloque la publication de données incomplètes.</p>
   <p>Le détail des sources de chaque territoire (flux, dates de validité, corrections appliquées) figure dans l'application, rubrique <em>Mes trajets › Sources et qualité des données</em>.</p>
-  <div class="wrap"><table>
+  <div class="wrap" tabindex="0" role="region" aria-label="Tableau des données et de leurs sources"><table>
     <thead><tr><th>Données</th><th>Source</th><th>Licence</th></tr></thead>
     <tbody>
       <tr><td>Horaires des bus, cars et transport à la demande</td><td>réseaux et collectivités, via <a href="https://transport.data.gouv.fr/" rel="noopener">transport.data.gouv.fr</a></td><td>Licence Ouverte (Etalab)</td></tr>
@@ -76,7 +76,7 @@
   <p>Pour savoir si le service est utile, le serveur compte les affichages de l'application et des encarts intégrés aux sites des communes. Chaque affichage est noté avec : la date et l'heure, la page (application ou encart), le territoire, la commune et le format de l'encart, le nom du site qui l'intègre, le type d'appareil (téléphone, tablette, ordinateur) et, tant que l'application est en accès réservé, le nom du compte d'essai utilisé. <strong>Aucune adresse IP, aucun identifiant, aucun cookie</strong> : on compte des affichages, pas des personnes. Le journal technique des erreurs du serveur peut contenir des adresses IP ; il est effacé automatiquement au bout de quelques jours.</p>
   <h3>Services tiers appelés par votre navigateur</h3>
   <p>Comme tout site, ces services reçoivent l'adresse IP de votre appareil au moment de la requête :</p>
-  <div class="wrap"><table>
+  <div class="wrap" tabindex="0" role="region" aria-label="Tableau des services tiers appelés par votre navigateur"><table>
     <thead><tr><th>Service</th><th>Pour quoi</th><th>Ce qui est transmis</th></tr></thead>
     <tbody>
       <tr><td>OpenFreeMap ; IGN (photos aériennes, si vous les affichez)</td><td>fond de carte</td><td>les portions de carte affichées</td></tr>
@@ -91,16 +91,33 @@
   <p>Maillage ne constitue aucun fichier de personnes. Pour toute question sur vos données : <a href="mailto:contact@tuatam.fr">contact@tuatam.fr</a>. Vous pouvez aussi adresser une réclamation à la <a href="https://www.cnil.fr/fr/plaintes" rel="noopener">CNIL</a>.</p>
 
   <h2 id="accessibilite">Accessibilité</h2>
-  <p>Maillage vise la conformité au <abbr title="Référentiel général d'amélioration de l'accessibilité">RGAA</abbr> 4.1 (niveau AA du WCAG 2.1) : navigation au clavier, compatibilité avec les lecteurs d'écran, contrastes, textes agrandissables.</p>
-  <p><strong>État de conformité : non encore évalué.</strong> Un audit complet est prévu ; la déclaration d'accessibilité détaillée sera publiée ici à son issue.</p>
-  <p>Si vous ne parvenez pas à accéder à une information ou à un service, écrivez à <a href="mailto:contact@tuatam.fr?subject=Accessibilit%C3%A9%20Maillage">contact@tuatam.fr</a> : nous vous répondrons et vous fournirons l'information sous une autre forme. Si vous n'obtenez pas de réponse satisfaisante, vous pouvez saisir le <a href="https://formulaire.defenseurdesdroits.fr/" rel="noopener">Défenseur des droits</a>.</p>
+  <p>Roland Louche EI s'engage à rendre Maillage accessible conformément à l'article 47 de la loi n° 2005-102 du 11 février 2005. Cette déclaration s'applique à l'application (<code>maillage.tuatam.fr</code>), aux encarts publiés sur les sites des communes et à l'espace mairie.</p>
+  <h3>État de conformité</h3>
+  <p><strong>Maillage est non conforme</strong> au <abbr title="Référentiel général d'amélioration de l'accessibilité">RGAA</abbr> 4.1 : aucun audit complet selon la méthode du référentiel n'a encore été réalisé.</p>
+  <p>Une auto-évaluation a été menée le 19 novembre 2026 sur 17 écrans (accueil, carte, fiches de ligne et d'arrêt, itinéraire, info trafic, mes trajets, les trois formats d'encart, cette page, l'espace mairie). Les défauts relevés ont été corrigés : contraste de l'anneau de focus et des bordures, lien d'évitement, zones et titres de page, commandes utilisables au clavier. Les tests automatiques ne signalent plus d'erreur sur ces écrans.</p>
+  <h3>Contenus non accessibles ou non encore vérifiés</h3>
+  <ul>
+    <li>La carte interactive n'est pas exploitable avec un lecteur d'écran. Toutes ses informations sont disponibles autrement : arrêts proches, fiches des lignes et des arrêts, recherche et itinéraires.</li>
+    <li>Les parcours avec un lecteur d'écran (VoiceOver, NVDA) n'ont pas encore été testés.</li>
+  </ul>
+  <h3>Établissement de cette déclaration</h3>
+  <p>Déclaration établie le 19 novembre 2026. Technologies utilisées : HTML, CSS, JavaScript, SVG, WAI-ARIA. Vérifications : tests automatiques axe-core 4.10 dans Chrome, navigation au clavier, affichage à 320 px de large et avec un espacement de texte augmenté, calcul des contrastes.</p>
+  <h3>Retour d'information et contact</h3>
+  <p>Si vous ne parvenez pas à accéder à une information ou à un service, écrivez à <a href="mailto:contact@tuatam.fr?subject=Accessibilit%C3%A9%20Maillage">contact@tuatam.fr</a> : nous vous répondrons et vous fournirons l'information sous une autre forme. </p>
+  <h3>Voies de recours</h3>
+  <p>Si vous nous avez signalé un défaut d'accessibilité qui vous empêche d'accéder à un contenu ou à un service et que vous n'avez pas obtenu de réponse satisfaisante, vous pouvez saisir le Défenseur des droits :</p>
+  <ul>
+    <li>par le <a href="https://formulaire.defenseurdesdroits.fr/" rel="noopener">formulaire en ligne</a> ;</li>
+    <li>auprès d'un <a href="https://www.defenseurdesdroits.fr/carte-des-delegues" rel="noopener">délégué de votre région</a> ;</li>
+    <li>par courrier, gratuit et sans affranchissement : Défenseur des droits, Libre réponse 71120, 75342 Paris CEDEX 07.</li>
+  </ul>
 
   <h2 id="contact">Contact</h2>
   <ul>
     <li><strong>Une question sur un horaire, un tarif, une réservation</strong> : le réseau concerné (coordonnées dans l'application, rubrique <em>Mes trajets › Services</em>).</li>
     <li><strong>Un problème avec l'application ou un encart</strong>, une commune intéressée : <a href="mailto:contact@tuatam.fr?subject=Maillage">contact@tuatam.fr</a>.</li>
   </ul>
-  <p class="muted">Page mise à jour le 18 novembre 2026.</p>
+  <p class="muted">Page mise à jour le 19 novembre 2026.</p>
 </main>
 </body>
 </html>

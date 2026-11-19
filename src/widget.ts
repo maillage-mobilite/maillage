@@ -117,7 +117,7 @@ function renderCompact(data: WData, now: { date: string; sec: number }) {
     return `<li class="w-crow"><span class="w-cstop">${esc(shortName(data, stop))}</span>${items.length ? items.join('') : '<span class="w-muted">pas de départ avant demain</span>'}</li>`
   }).join('')
   root.innerHTML = `
-    <div class="w-ctop"><h2>Prochains bus à ${esc(data.name)}</h2>${linkHtml(lien, 'Itinéraire', 'w-link w-small')}</div>
+    <div class="w-ctop"><h1>Prochains bus à ${esc(data.name)}</h1>${linkHtml(lien, 'Itinéraire', 'w-link w-small')}</div>
     <ul class="w-clist">${rows}</ul>`
 }
 
@@ -136,11 +136,11 @@ function renderVenir(data: WData, now: { date: string; sec: number }) {
   const vers = lienFourni ? lien
     : new URL(`./?reseau=${reseau}&src=encart-venir&commune=${commune}&vers=${lat.toFixed(5)},${lon.toFixed(5)},${encodeURIComponent(nom)}`, location.href).toString()
   const blocks = near.map(({ s, m }) => `<section class="w-stop" aria-label="Arrêt ${esc(s.name)}">
-      <h3>${esc(shortName(data, s))} <span class="w-walk">· ${walk(m)} min à pied</span></h3>
+      <h2>${esc(shortName(data, s))} <span class="w-walk">· ${walk(m)} min à pied</span></h2>
       <ul>${rowsHtml(data, groupsOf(data, s, now), 4) || '<li class="w-muted">Aucun départ dans les prochaines 24 h.</li>'}</ul>
     </section>`).join('')
   root.innerHTML = `
-    <header class="w-top"><h2>Venir en bus · ${esc(nom)}</h2><p class="w-muted">${esc(type)}</p></header>
+    <header class="w-top"><h1>Venir en bus · ${esc(nom)}</h1><p class="w-muted">${esc(type)}</p></header>
     ${blocks}
     <footer class="w-foot">
       ${linkHtml(vers, 'Itinéraire jusqu’ici', 'w-btn')}
@@ -153,7 +153,7 @@ function render(data: WData) {
   // données expirées (flux GTFS échu ou fenêtre précalculée dépassée) : on ne fait pas croire qu'il n'y a pas de bus
   if ((data.valid_until && now.date > data.valid_until) || dayIndex(data.window_start, now.date) >= data.window_days) {
     root.innerHTML = `
-      <header class="w-top"><h2>Prochains départs à ${esc(data.name)}</h2></header>
+      <header class="w-top"><h1>Prochains départs à ${esc(data.name)}</h1></header>
       <p class="w-muted">Les horaires sont en cours de mise à jour.${data.operator_url ? ' En attendant, consultez le site du transporteur.' : ''}</p>
       ${data.operator_url && /^https:\/\//.test(data.operator_url) ? `<footer class="w-foot"><a class="w-link" href="${esc(data.operator_url)}" target="_blank" rel="noopener">Site du transporteur<span class="sr"> (nouvel onglet)</span> ↗</a></footer>` : ''}`
     root.removeAttribute('aria-busy')
@@ -183,13 +183,13 @@ function render(data: WData) {
     }).join('')
     const short = stop.name.replace(new RegExp(`^${data.name},\\s*`, 'i'), '')
     return `<section class="w-stop" aria-label="Arrêt ${esc(stop.name)}">
-      <h3>${esc(short)}</h3>
+      <h2>${esc(short)}</h2>
       ${rows ? `<ul>${rows}</ul>` : '<p class="w-muted">Aucun départ dans les prochaines 24 h.</p>'}
     </section>`
   }).join('')
   root.innerHTML = `
     <header class="w-top">
-      <h2>Prochains départs à ${esc(data.name)}</h2>
+      <h1>Prochains départs à ${esc(data.name)}</h1>
       <p class="w-muted">Mis à jour à ${hm(now.sec)}</p>
     </header>
     ${stops}

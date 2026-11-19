@@ -73,9 +73,9 @@ export function TrainBoard({ net, station, now, walkMeters }: { net: Network; st
           {walkMeters != null && <small>{walkMeters < 40 ? 'sur place' : `à ${walkMeters} m à pied (≈ ${Math.max(1, Math.round(walkMeters * 1.25 / 72))} min)`}</small>}
         </span>
       </div>
-      <div class="segmented small-seg" role="tablist">
-        <button role="tab" aria-selected={kind === 'dep'} class={kind === 'dep' ? 'on' : ''} onClick={() => setKind('dep')}>Départs</button>
-        <button role="tab" aria-selected={kind === 'arr'} class={kind === 'arr' ? 'on' : ''} onClick={() => setKind('arr')}>Arrivées</button>
+      <div class="segmented small-seg" role="group" aria-label="Trains affichés">
+        <button aria-pressed={kind === 'dep'} class={kind === 'dep' ? 'on' : ''} onClick={() => setKind('dep')}>Départs</button>
+        <button aria-pressed={kind === 'arr'} class={kind === 'arr' ? 'on' : ''} onClick={() => setKind('arr')}>Arrivées</button>
       </div>
       {hasHighSpeed && (
         <label class="toggle small"><input type="checkbox" checked={tgv} onChange={e => setTgv((e.target as HTMLInputElement).checked)} /> Inclure TGV, OUIGO et Intercités</label>

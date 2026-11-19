@@ -103,9 +103,17 @@ function rendre() {
   app.innerHTML = `
     <h1>${esc(ctx.nom)}</h1>
     <p class="m-muted">Réseau ${esc(ctx.reseau)} · ${ctx.lignes.length} ligne(s) desservent les arrêts de la commune</p>
-    <div class="m-tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-t="${k}" aria-selected="${k === onglet}">${l}</button>`).join('')}</div>
-    <div id="m-vue"></div>`
-  $$('[data-t]').forEach(b => (b.onclick = () => { onglet = b.dataset.t as typeof onglet; rendre() }))
+    <div class="m-tabs" role="tablist" aria-label="Rubriques">${tabs.map(([k, l]) => `<button role="tab" id="tab-${k}" data-t="${k}" aria-controls="m-vue" aria-selected="${k === onglet}" tabindex="${k === onglet ? 0 : -1}">${l}</button>`).join('')}</div>
+    <div id="m-vue" role="tabpanel" aria-labelledby="tab-${onglet}"></div>`
+  const boutons = $$<HTMLButtonElement>('[data-t]')
+  const choisir = (k: string, focus = false) => { onglet = k as typeof onglet; rendre(); if (focus) $<HTMLButtonElement>(`#tab-${k}`).focus() }
+  boutons.forEach((b, i) => {
+    b.onclick = () => choisir(b.dataset.t!)
+    b.onkeydown = e => {
+      const j = e.key === 'ArrowRight' ? (i + 1) % boutons.length : e.key === 'ArrowLeft' ? (i - 1 + boutons.length) % boutons.length : e.key === 'Home' ? 0 : e.key === 'End' ? boutons.length - 1 : -1
+      if (j >= 0) { e.preventDefault(); choisir(boutons[j].dataset.t!, true) }
+    }
+  })
   const vue = $('#m-vue')
   ;({ messages: vueMessages, lieux: vueLieux, stats: vueStats, encart: vueEncart })[onglet](vue)
 }
