@@ -6,8 +6,11 @@
 # installe les unités systemd. N'active PAS le minuteur : à faire après une première publication réussie
 # (sudo systemctl enable --now maillage-donnees.timer).
 set -euo pipefail
-HOST="ubuntu@vps-4075b317.vps.ovh.net"
-KEY="$HOME/.ssh/id_ed25519_ovh_almanach"
+CONF="$(cd "$(dirname "$0")" && pwd)/../config.sh"
+[[ -f "$CONF" ]] || { echo "Configuration absente : copier deploy/config.exemple.sh en deploy/config.sh" >&2; exit 1; }
+. "$CONF"
+HOST="$VPS_HOST"
+KEY="$VPS_KEY"
 BASE=/srv/sites/maillage
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
 SSH=(ssh -i "$KEY" -o BatchMode=yes "$HOST")

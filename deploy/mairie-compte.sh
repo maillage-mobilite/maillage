@@ -5,8 +5,11 @@
 #   ./deploy/mairie-compte.sh retire <e-mail>
 # Effet immédiat (le fichier est relu à chaque requête) ; retirer un compte coupe aussi ses sessions ouvertes.
 set -euo pipefail
-HOST="ubuntu@vps-4075b317.vps.ovh.net"
-KEY="$HOME/.ssh/id_ed25519_ovh_almanach"
+CONF="$(cd "$(dirname "$0")" && pwd)/config.sh"
+[[ -f "$CONF" ]] || { echo "Configuration absente : copier deploy/config.exemple.sh en deploy/config.sh" >&2; exit 1; }
+. "$CONF"
+HOST="$VPS_HOST"
+KEY="$VPS_KEY"
 ssh -i "$KEY" -o BatchMode=yes "$HOST" "python3 -I - $(printf '%q ' "$@")" <<'PY'
 import json, os, sys
 f = "/srv/sites/maillage/espace/comptes.json"

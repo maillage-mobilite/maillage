@@ -12,8 +12,11 @@
 # ni GitLab ne changent. Les données ne partent plus du Mac : public/data n'est que la copie de développement.
 # Première installation sur le VPS : deploy/vps/installer.sh
 set -euo pipefail
-HOST="ubuntu@vps-4075b317.vps.ovh.net"
-KEY="$HOME/.ssh/id_ed25519_ovh_almanach"
+CONF="$(cd "$(dirname "$0")" && pwd)/config.sh"
+[[ -f "$CONF" ]] || { echo "Configuration absente : copier deploy/config.exemple.sh en deploy/config.sh" >&2; exit 1; }
+. "$CONF"
+HOST="$VPS_HOST"
+KEY="$VPS_KEY"
 DIR="/srv/sites/maillage"
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
 SSH=(ssh -i "$KEY" -o BatchMode=yes "$HOST")
@@ -48,7 +51,7 @@ if [[ $CONFIG == 1 ]]; then
   "${SSH[@]}" "cd $DIR/depot && git fetch -q origin && git reset -q --hard origin/main"
   "${SSH[@]}" "mkdir -p $DIR/espace $DIR/contenus && { [ -f $DIR/espace/comptes.json ] || echo '{\"comptes\": []}' > $DIR/espace/comptes.json; }"
   "${SSH[@]}" "[ -f $DIR/private/htpasswd ] || { sudo touch $DIR/private/htpasswd; sudo chown root:101 $DIR/private/htpasswd; sudo chmod 640 $DIR/private/htpasswd; }"
-  if [[ "$(dig +short maillage.tuatam.fr A | tail -1)" == "57.129.163.124" ]]; then
+  if [[ "$(dig +short maillage.tuatam.fr A | tail -1)" == "$VPS_IP" ]]; then
     "${SSH[@]}" "cd $DIR && sudo docker compose -f compose.yml -f compose.domain.yml up -d --build"
   else
     echo "DNS pas encore pointé : conteneur lancé sans domaine"

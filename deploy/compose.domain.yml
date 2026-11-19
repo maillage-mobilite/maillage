@@ -1,4 +1,4 @@
-# Domaine du démonstrateur. maillage.tuatam.fr pointe sur le VPS (57.129.163.124) depuis le 16/11/2026.
+# Domaine du démonstrateur. maillage.tuatam.fr pointe sur le VPS depuis le 16/11/2026.
 services:
   web:
     labels:
