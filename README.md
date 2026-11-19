@@ -1,56 +1,87 @@
+<div align="center">
+
+<img src=".github/images/logo.svg" width="72" height="72" alt="">
+
 # Maillage
 
-**L'information voyageur des petites villes et des territoires ruraux, construite à partir des données ouvertes.**
+**L'information voyageur des petites villes et des territoires ruraux,<br>construite à partir des données ouvertes.**
 
-Maillage transforme les horaires publiés en open data (GTFS) par un réseau de transport en un service web
-mobile : prochains départs, itinéraires porte à porte, fiches de ligne et d'arrêt, correspondances train, lieux
-utiles. Une commune peut l'intégrer à son site par un simple encart et y publier ses propres messages depuis un
-espace dédié. Tout fonctionne sans application à installer, sans compte et sans traceur.
+[![Licence : AGPL v3](https://img.shields.io/badge/licence-AGPL--3.0-0f3d3e)](LICENSE)
+[![Données : ODbL](https://img.shields.io/badge/donn%C3%A9es-ODbL-0f3d3e)](LICENCE-DONNEES.md)
+[![GTFS](https://img.shields.io/badge/GTFS-open%20data-2563eb)](https://transport.data.gouv.fr)
+[![Preact](https://img.shields.io/badge/Preact-TypeScript-673ab8?logo=preact&logoColor=white)](https://preactjs.com)
+[![MapLibre](https://img.shields.io/badge/MapLibre_GL-5-396cb2?logo=maplibre&logoColor=white)](https://maplibre.org)
+[![Python](https://img.shields.io/badge/Python-biblioth%C3%A8que%20standard-3776ab?logo=python&logoColor=white)](pipeline/)
 
-Territoires actuels : **CoqueliGO** (Annonay, Ardèche) et **Pays de Gex** (Ornex, Ain).
-Service en ligne : https://maillage.tuatam.fr (accès sur invitation pendant la phase pilote ; les encarts et l'espace mairie sont publics).
+[Fonctions](#fonctions) · [Démarrer](#démarrer) · [Comment ça marche](#comment-ça-marche) · [Contribuer](#contribuer) · [Licence](#licence)
 
+<img src=".github/images/apercu.png" alt="Quatre écrans de Maillage sur téléphone : prochains départs autour de soi sur la carte d'Annonay, fiche de la ligne 1 avec ses horaires, recherche d'itinéraire vers la gare de Valence, encart des prochains départs pour le site de la mairie d'Ornex" width="100%">
+
+</div>
+
+---
+
+Les petits réseaux publient leurs horaires en open data (GTFS), mais leurs voyageurs n'ont souvent que des fiches PDF.
+**Maillage** transforme ces données en un service web mobile complet, et donne aux communes de quoi l'intégrer à leur
+site et y publier leurs propres messages.
+
+- 📱 **Rien à installer** : une page web pensée pour le téléphone, sans compte, sans cookie, sans traceur.
+- 🏘️ **Pensé pour les territoires** : bus urbains, cars régionaux, lignes scolaires, transport à la demande et trains
+  réunis sur une même carte.
+- 🏛️ **Au service des communes** : un encart à coller sur le site de la mairie et un espace pour publier des messages.
+- 🔓 **Ouvert** : code libre, données ouvertes, standards (GTFS, OpenStreetMap).
+
+**Territoires actuels** : CoqueliGO (Annonay, Ardèche) et Pays de Gex (Ornex, Ain).
+Service en ligne : [maillage.tuatam.fr](https://maillage.tuatam.fr) (sur invitation pendant la phase pilote ; les encarts et l'espace mairie sont publics).
+
+> [!NOTE]
 > Projet indépendant, non affilié aux réseaux présentés (CoqueliGO, Annonay Rhône Agglo, Pays de Gex Agglo, TPG).
-> Horaires **théoriques** issus des données publiées par les réseaux.
+> Les horaires sont **théoriques**, tels que publiés par les réseaux.
 
 ## Fonctions
 
-- **Prochains départs** autour de soi, par arrêt et par ligne, sur 48 h.
-- **Itinéraires** d'adresse à adresse (calcul dans le navigateur, *Connection Scan Algorithm*), marche par les rues,
-  correspondances, TER et trains suisses, transport à la demande et lignes scolaires activables, tarif indicatif.
-- **Fiches de ligne** qui remplacent les fiches horaires PDF : schéma de la ligne (tronc commun, variantes), tous les
-  départs du jour choisi, parcours détaillé.
-- **Carte** : tracés recalés sur la chaussée et les voies ferrées, sens de circulation, gares, lieux utiles
-  OpenStreetMap filtrables, fonds de carte (plan, vue aérienne, vélo).
-- **Gares** : départs et arrivées des trains en correspondance, avec le temps réel SNCF.
-- **Mes lieux et favoris** enregistrés sur l'appareil, avec le prochain trajet vers chacun.
-- **Info trafic** : messages publiés par les communes, alertes d'expiration des données.
-- **Encarts pour les sites de communes** (`widget.html`) : trois formats (complet, compact, « Comment venir »),
-  couleur de la commune, hauteur ajustée automatiquement. Démonstration : `public/demo-encarts.html`.
-- **Espace mairie** (`mairie.html`) : connexion par lien envoyé par e-mail, messages aux voyageurs, lieux utiles
+### 🚌 Pour les voyageurs
+
+- 🚏 **Prochains départs** autour de soi, par arrêt et par ligne, sur 48 h.
+- 🧭 **Itinéraires** d'adresse à adresse, calculés dans le navigateur : marche par les rues, correspondances, TER et
+  trains suisses, transport à la demande et lignes scolaires activables, tarif indicatif.
+- 📋 **Fiches de ligne** qui remplacent les fiches PDF : schéma de la ligne (tronc commun, variantes), tous les départs
+  du jour choisi, parcours détaillé.
+- 🗺️ **Carte** : tracés recalés sur la chaussée et les voies ferrées, sens de circulation, gares, lieux utiles
+  OpenStreetMap, fonds plan, vue aérienne et vélo.
+- 🚆 **Gares** : départs et arrivées des trains en correspondance, avec le temps réel SNCF.
+- ⭐ **Mes lieux** : domicile, travail, école et favoris enregistrés sur l'appareil, avec le prochain trajet vers chacun.
+- ⚠️ **Info trafic** : messages publiés par les communes, alertes d'expiration des données.
+
+### 🏛️ Pour les communes
+
+- 🧩 **Encarts** (`widget.html`) à coller sur le site de la mairie : formats complet, compact et « Comment venir » à un
+  lieu, aux couleurs de la commune, hauteur ajustée automatiquement. Démonstration : `public/demo-encarts.html`.
+- ✉️ **Espace mairie** (`mairie.html`) : connexion par lien envoyé par e-mail, messages aux voyageurs, lieux utiles
   ajoutés ou masqués, statistiques de l'encart, générateur du code d'intégration.
 
 ## Démarrer
 
+Prérequis : Node.js, Python 3 et, pour des tracés précis, Docker.
+
 ```bash
 npm install
+npm run dev
 ```
+
+Puis ouvrir http://localhost:5199 (de préférence en vue mobile) : la page d'accueil propose les territoires. Accès direct : `?reseau=coqueligo` ou `?reseau=paysdegex`.
+
+Le dépôt contient une copie des données pour démarrer tout de suite. Pour les régénérer à partir des sources :
 
 ```bash
 pipeline/osrm/osrm.sh start && pipeline/osrm/osrm.sh start-rail && pipeline/osrm/osrm.sh start-genf
-```
-
-```bash
 npm run data
-```
-
-```bash
-npm run dev
 ```
 
 Les moteurs OSRM (Docker) recalent les tracés sur la chaussée et les voies ferrées ; à préparer une fois avec `prepare`, `prepare-rail` et `prepare-genf` (voir [EXPLOITATION.md](EXPLOITATION.md)). Sans eux, `npm run data` fonctionne, mais les tracés restent grossiers.
 
-Puis ouvrir http://localhost:5199 (de préférence en vue mobile) : la page d'accueil propose les territoires. Accès direct : `?reseau=coqueligo` ou `?reseau=paysdegex`.
+<details>
+<summary>Téléchargements, trains suisses, éditeur de tracés et autres commandes</summary>
 
 `npm run data` télécharge (avec repli automatique sur `curl` si le Python de python.org n'a pas ses certificats racine) les GTFS déclarés dans `pipeline/tenants/coqueligo.json` puis `pipeline/tenants/paysdegex.json` (un seul territoire : `npm run data:coqueligo` ou `npm run data:paysdegex`), dont l'agrégat régional Oùra (~110 Mo). Comptez quelques minutes la première fois. Les données générées couvrent **60 jours** à partir du jour d'exécution : il faut relancer la commande ensuite.
 
@@ -60,26 +91,30 @@ Puis ouvrir http://localhost:5199 (de préférence en vue mobile) : la page d'ac
 
 Autres commandes : `npm run test:router` (tests du calculateur sur les vraies données), `npm run check:data` (alerte d'expiration des données), `npm run build` (version statique dans `dist/`, pages `index.html` et `widget.html`) et `./deploy/deploy-vps.sh` (publication sur le serveur, voir [deploy/README.md](deploy/README.md)).
 
-## Architecture (volontairement minimale)
+</details>
+
+## Comment ça marche
 
 ```
-mairie/serveur.py                    espace mairie (connexion, messages, lieux, statistiques)
-deploy/                              publication sur un VPS (Docker, nginx, systemd)
-pipeline/tenants/<id>.json           configuration d'un territoire (flux, liens, règles TAD, lacunes)
-pipeline/build_network.py            Python standard : téléchargement, contrôle, corrections,
-                                      réconciliation des arrêts, sortie compacte
-public/data/tenants.json             registre des territoires (page d'accueil)
-public/data/<id>/network.json (~410 Ko) réseau complet : lignes, arrêts, pôles, courses, calendriers
-public/data/<id>/lines.geojson (~790 Ko) tracés simplifiés
-src/net.ts                           modèle, calendriers, prochains départs
-src/router.ts                        calcul d'itinéraires (Connection Scan Algorithm)
-src/map.tsx                          MapLibre GL 5 + fond OpenFreeMap
-src/views/*                          écrans (Preact)
+pipeline/tenants/<id>.json       configuration d'un territoire (flux, liens, règles TAD, lacunes)
+pipeline/build_network.py        Python standard : téléchargement, contrôle, corrections, réconciliation des arrêts
+public/data/tenants.json         registre des territoires (page d'accueil)
+public/data/<id>/network.json    réseau complet : lignes, arrêts, pôles, courses, calendriers (1 à 2 Mo, bien moins une fois compressé)
+public/data/<id>/lines.geojson   tracés des lignes (2 à 3 Mo)
+src/net.ts                       modèle, calendriers, prochains départs
+src/router.ts                    calcul d'itinéraires (Connection Scan Algorithm)
+src/map.tsx                      MapLibre GL 5 + fond OpenFreeMap
+src/views/*                      écrans (Preact)
+src/widget.ts                    encarts pour les sites de communes
+mairie/serveur.py                espace mairie (connexion, messages, lieux, statistiques)
+deploy/                          publication sur un VPS (Docker, nginx, systemd)
 ```
 
-Pas de serveur applicatif pour les voyageurs : tout tourne dans le navigateur, ce qui est possible parce qu'un petit réseau tient dans quelques centaines de Ko. Seul l'espace mairie a un petit serveur (`mairie/serveur.py`, Python sans dépendance), dont les publications deviennent des fichiers statiques.
+Pas de serveur applicatif pour les voyageurs : tout tourne dans le navigateur, ce qui est possible parce qu'un petit réseau, trains en correspondance compris, tient en quelques Mo. Seul l'espace mairie a un petit serveur (`mairie/serveur.py`, Python sans dépendance), dont les publications deviennent des fichiers statiques.
 
-### Ce que fait le pipeline
+<details>
+<summary>Ce que fait le pipeline de données</summary>
+
 - télécharge 4 flux : urbain, scolaire, TAD et cars Région filtrés sur 6 km autour d'Annonay ;
 - **corrige automatiquement** : 34 temps de parcours négatifs (scolaire), séquences dupliquées, couleurs de texte illisibles (contraste WCAG) ;
 - **réconcilie les arrêts entre flux** : 936 arrêts → 527 pôles, dont 135 rapprochements inter-flux (la gare routière regroupe urbain, TAD, scolaire et Région) ;
@@ -89,11 +124,15 @@ Pas de serveur applicatif pour les voyageurs : tout tourne dans le navigateur, c
 - **recale sur la voirie les tracés droits** (critères : plus de 30 % de la longueur en segments droits de plus de 600 m, ou moins de 4 points/km, ce qui attrape aussi les 5S et 6S) : le TAD (100 %), les lignes scolaires B, C, E, G et H (70 à 90 %) et une partie des cars Région (E95, E96, 07-AN5) ne publient que des lignes droites d'arrêt à arrêt. Chaque suite de segments droits est remplacée par l'itinéraire routier OSRM passant par les mêmes arrêts. Si la route fait plus de 2,2 fois la ligne droite, la ligne droite est conservée. Résultats en cache (`.cache/osrm-cache.json`) ; à désactiver avec `--no-snap` ;
 - **signale l'expiration** des flux (urbain et TAD s'arrêtent fin 2026).
 
+</details>
+
 ### Garanties
+
 - Chaque horaire affiché provient du GTFS. Le test `npm run test:router` le vérifie sur chaque étape d'itinéraire.
 - Pas de compte, pas de cookie, pas de traceur : la mesure d'usage est anonyme (ni adresse IP, ni identifiant). Les favoris restent dans le navigateur. La seule requête externe avec saisie utilisateur part vers la Base Adresse Nationale (adresses tapées).
 
-## Écarts assumés par rapport à une architecture « grande ville »
+<details>
+<summary>Écarts assumés par rapport à une architecture « grande ville »</summary>
 
 | Cible | Démonstrateur | Pourquoi |
 |---|---|---|
@@ -103,14 +142,22 @@ Pas de serveur applicatif pour les voyageurs : tout tourne dans le navigateur, c
 | Recalage des tracés : instance OSRM/Valhalla auto-hébergée, ou pfaedle (outil de référence pour recaler des GTFS sur OSM) | Trois moteurs OSRM locaux (Docker : bus et rail Rhône-Alpes, bus Genève) ; serveur public OSRM en repli pour les portions hors extrait | Les moteurs tournent sur le poste, pas sur le serveur |
 | Tracés réels des trajets | Lignes droites d'arrêt à arrêt sur l'itinéraire (les tracés de ligne, eux, sont réels) | Simplicité |
 
-## Sécurité : alerte `npm audit` sur MapLibre 5
+</details>
+
+<details>
+<summary>Sécurité : alerte <code>npm audit</code> sur MapLibre 5</summary>
+
 `npm audit` signale une vulnérabilité **critique** sur `maplibre-gl` ≤ 6.4.0 ([GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579)) : contournement du nettoyeur HTML `DOM.sanitize()`, donc risque de XSS.
 
 - Dans MapLibre 5.24, ce nettoyeur n'est appelé qu'à un seul endroit : le contrôle d'attribution, qui affiche le HTML fourni par la source de tuiles (ici OpenFreeMap, un tiers).
 - Le démonstrateur **désactive ce contrôle** (`attributionControl: false`) et affiche les crédits OpenStreetMap lui-même, en texte échappé par Preact. Le code vulnérable n'est donc jamais exécuté, et l'application n'utilise aucune popup HTML.
 - MapLibre 6.18 (corrigé) a été essayé deux fois : son style ne se charge pas avec Vite 8. **À retenter** lors d'une prochaine mise à jour de MapLibre ou de Vite. L'alerte disparaîtra alors.
 
-## Limites connues
+</details>
+
+<details>
+<summary>Limites connues</summary>
+
 - **Lignes TER affichées par leur parcours** (« TER · Mâcon – Lyon Perrache – Valence ») : les codes du GTFS SNCF (K4, K64, P4…) ne sont pas les numéros affichés aux voyageurs (TER Auvergne-Rhône-Alpes numérote ses lignes 01 à 76) et un même code sert dans plusieurs régions. Vérifié le 13/11/2026 sur ter.sncf.com.
 - **Marche par les rues** : chaque étape à pied est recalculée après coup par le service OSRM piéton public de FOSSGIS (coordonnées envoyées à ce tiers ; en production, un moteur hébergé). Le calcul lui-même choisit les correspondances sur une estimation à vol d'oiseau × 1,25 : une correspondance devenue trop juste par les rues est signalée, pas recalculée.
 - Côté SNCF, seuls les **TER** sont intégrés au calcul d'itinéraire : les TGV, OUIGO et Intercités apparaissent dans les tableaux des gares, mais pas dans les itinéraires (billets et réservation différents). Au Pays de Gex s'y ajoutent les **trains suisses** (CFF), sans temps réel et absents des tableaux de gare.
@@ -124,15 +171,22 @@ Pas de serveur applicatif pour les voyageurs : tout tourne dans le navigateur, c
 - Le TAD est modélisé comme des courses à horaires fixes. Le démonstrateur interdit d'enchaîner deux TAD.
 - La réconciliation d'arrêts regroupe parfois des arrêts voisins de noms différents (ex. « Lycées » et « Boissy d'Anglas »). En production, une validation humaine unique est prévue.
 
+</details>
+
 ## Contribuer
 
-Les signalements (horaires faux, tracé erroné, problème d'accessibilité) et les propositions sont les bienvenus dans
-les tickets. Pour du code, voir [CONTRIBUTING.md](CONTRIBUTING.md). Ajouter un territoire revient surtout à écrire
-un fichier `pipeline/tenants/<id>.json` : voir [EXPLOITATION.md](EXPLOITATION.md).
+Les signalements (horaire faux, tracé erroné, problème d'accessibilité) et les propositions sont les bienvenus dans
+les [tickets](../../issues). Pour proposer du code, voir [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Ajouter un territoire revient surtout à écrire un fichier `pipeline/tenants/<id>.json` qui déclare ses flux GTFS :
+voir [EXPLOITATION.md](EXPLOITATION.md). Vous êtes une commune ou un réseau intéressé ? Écrivez à
+[contact@tuatam.fr](mailto:contact@tuatam.fr).
 
 ## Licence
 
-- Code : [GNU AGPL v3 ou ultérieure](LICENSE). Si vous proposez un service en ligne fondé sur une version modifiée,
-  vous devez en publier le code.
-- Données : licences de leurs sources, et ODbL pour les données générées. Détail et nom du service :
+- **Code** : [GNU AGPL v3 ou ultérieure](LICENSE). Un service en ligne fondé sur une version modifiée doit en publier
+  le code.
+- **Données** : licences de leurs sources, et ODbL pour les données générées. Détail, sources et usage du nom :
   [LICENCE-DONNEES.md](LICENCE-DONNEES.md).
+
+<div align="center"><sub>Données © contributeurs OpenStreetMap, réseaux de transport et SNCF · voir <a href="LICENCE-DONNEES.md">LICENCE-DONNEES.md</a></sub></div>
