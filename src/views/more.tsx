@@ -1,8 +1,8 @@
 // Onglets Info trafic et Mes trajets (favoris, services, sources des données).
 import { BRAND } from '../brand'
-import { Fares, Network, fmtEur, routeKey } from '../net'
+import { Fares, Network, fmtEur, routeKey, useMessages } from '../net'
 import { useState } from 'preact/hooks'
-import { Empty, Header, Icon, Pill } from '../ui'
+import { Empty, Header, Icon, MairieMessages, Pill } from '../ui'
 import { LOCATION_META, type LocationKind, type SavedLocation } from '../store'
 import { PlaceInput } from './trip'
 import type { Favorites } from '../store'
@@ -27,12 +27,16 @@ export function AlertsView({ net }: { net: Network }) {
   const L = net.tenant.links
   const official = [L.website && { href: L.website, label: `Site officiel ${net.tenant.territory}` }, L.operator && { href: L.operator, label: "Site de l'exploitant" }]
     .filter((x): x is { href: string; label: string } => !!x)
+  const messages = useMessages()
   return (
     <div class="sheet-body">
       <Header title="Info trafic" />
-      <Empty icon="alert" title="Perturbations : voir le réseau">
-        Les travaux, déviations et arrêts déplacés ne sont pas encore repris dans {BRAND.name}. Avant un trajet inhabituel, vérifiez l'info trafic du réseau.
-      </Empty>
+      <MairieMessages messages={messages} title={messages.length ? 'Messages des mairies' : undefined} />
+      {messages.length > 0
+        ? <p class="small muted">Le réseau publie ses propres perturbations sur son site : vérifiez-les avant un trajet inhabituel.</p>
+        : <Empty icon="alert" title="Perturbations : voir le réseau">
+            Aucun message des mairies en ce moment. Les perturbations du réseau (déviations, grèves) ne sont pas encore reprises dans {BRAND.name} : avant un trajet inhabituel, vérifiez l'info trafic du réseau.
+          </Empty>}
       {official.map(o => <a key={o.href} class="row-btn" href={o.href} target="_blank" rel="noopener"><Icon name="external" size={18} /> {o.label}</a>)}
       {L.phone && <a class="row-btn" href={`tel:${L.phone.replace(/\s/g, '')}`}><Icon name="phone" size={18} /> Agence mobilité · {L.phone}</a>}
       {expiring.length > 0 && (

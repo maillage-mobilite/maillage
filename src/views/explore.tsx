@@ -2,9 +2,9 @@
 import { Fragment } from 'preact'
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import {
-  Network, Kind, KIND_LABEL, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow, fmtDuration, routeKey, type Route, type Trip
+  Network, Kind, KIND_LABEL, useMessages, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow, fmtDuration, routeKey, type Route, type Trip
 } from '../net'
-import { Empty, Header, Icon, Pill, ReportLink, TheoNotice, When, usePreview } from '../ui'
+import { Empty, Header, Icon, MairieMessages, Pill, ReportLink, TheoNotice, When, usePreview } from '../ui'
 import { TrainBoard } from '../trains'
 import { plan, type Journey } from '../router'
 import { LOCATION_META, type SavedLocation } from '../store'
@@ -193,11 +193,13 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
   const terLines = p.routes.filter(r => net.routes[r].kind === 'train')
   const lines = allLines ? busLines : busLines.slice(0, LINES_MAX)
   let lastDay = -1
+  const msgs = useMessages().filter(m => m.arrets.includes(p.name))
   return (
     <div class="sheet-body">
       <Header title={p.name} onBack={onBack}
         sub={<>{d < 20000 ? (d < 1000 ? `${Math.round(d / 10) * 10} m` : `${(d / 1000).toFixed(1)} km`) : ''} · {p.routes.length} ligne{p.routes.length > 1 ? 's' : ''}</>}
         right={<button class={`icon-btn${isFav ? ' active' : ''}`} onClick={() => toggleFav('places', p.name)} aria-pressed={isFav} aria-label={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}><Icon name="star" filled={isFav} /></button>} />
+      <MairieMessages messages={msgs} />
       <div class="actions compact">
         <button class="btn primary" onClick={() => onGo(id)}><Icon name="route" size={18} /> Y aller</button>
         <button class="btn" onClick={() => onFrom(id)}>Partir d'ici</button>
@@ -291,6 +293,7 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
   const isFav = fav.routes.includes(key)
   const booking = r.kind === 'tad' ? net.booking['tad'] : null
   const dirLabel = (d: number) => { const t = referenceTrip(net, id, d); return t ? `vers ${t.headsign}` : '' }
+  const msgs = useMessages().filter(m => m.lignes.includes(r.short))
   const scheme = useMemo(() => lineScheme(net, id), [net, id])
 
   return (
@@ -298,6 +301,7 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
       <Header title={<span class="route-title"><Pill route={r} /> {r.long}</span>} onBack={onBack}
         sub={`${KIND_LABEL[r.kind]} · ${r.agency}`}
         right={<button class={`icon-btn${isFav ? ' active' : ''}`} onClick={() => toggleFav('routes', key)} aria-pressed={isFav} aria-label={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}><Icon name="star" filled={isFav} /></button>} />
+      <MairieMessages messages={msgs} />
       {booking && (
         <div class="callout tad">
           <strong>Transport à la demande</strong>

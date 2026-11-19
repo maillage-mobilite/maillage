@@ -38,7 +38,7 @@ const lienFourni = /^https:\/\//.test(params.get('lien') ?? '')
 const lien = (() => {
   const v = params.get('lien')
   try { if (v && /^https:\/\//.test(v)) return new URL(v).toString() } catch { /* adresse invalide */ }
-  return new URL(`./?reseau=${reseau}&src=encart`, location.href).toString()
+  return new URL(`./?reseau=${reseau}&src=encart&commune=${commune}`, location.href).toString()
 })()
 
 const root = document.getElementById('widget')!
@@ -134,7 +134,7 @@ function renderVenir(data: WData, now: { date: string; sec: number }) {
     .filter((x, k) => k === 0 || x.m < 900)
   const walk = (m: number) => Math.max(1, Math.round(m * 1.3 / 75)) // détour des rues ≈ × 1,3 ; 4,5 km/h
   const vers = lienFourni ? lien
-    : new URL(`./?reseau=${reseau}&src=encart-venir&vers=${lat.toFixed(5)},${lon.toFixed(5)},${encodeURIComponent(nom)}`, location.href).toString()
+    : new URL(`./?reseau=${reseau}&src=encart-venir&commune=${commune}&vers=${lat.toFixed(5)},${lon.toFixed(5)},${encodeURIComponent(nom)}`, location.href).toString()
   const blocks = near.map(({ s, m }) => `<section class="w-stop" aria-label="Arrêt ${esc(s.name)}">
       <h3>${esc(shortName(data, s))} <span class="w-walk">· ${walk(m)} min à pied</span></h3>
       <ul>${rowsHtml(data, groupsOf(data, s, now), 4) || '<li class="w-muted">Aucun départ dans les prochaines 24 h.</li>'}</ul>
@@ -211,13 +211,40 @@ new ResizeObserver(() => {
   }
 }).observe(root)
 
+// Messages et lieux publiés par la mairie (espace mairie) : contenus/<territoire>/messages.json, lieux.json
+interface WMessage { commune: string; titre: string; texte: string; debut: string; fin: string; gravite: string; arrets: string[]; lien: string }
+let messages: WMessage[] = []
+const contenu = (f: string) => fetch(`./contenus/${reseau}/${f}`, { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+
+function bannerHtml(data: WData) {
+  const today = parisNow().date
+  const names = new Set(data.stops.map(s => s.name))
+  const active = messages.filter(m => m.debut <= today && m.fin >= today && (m.commune === commune || m.arrets.some(a => names.has(a))))
+    .sort((a, b) => (a.gravite === b.gravite ? 0 : a.gravite === 'perturbation' ? -1 : 1))
+  if (!active.length) return ''
+  return `<div class="w-msgs" role="status">${active.map(m => `<div class="w-msg${m.gravite === 'perturbation' ? ' warn' : ''}">
+    <strong>${esc(m.titre)}</strong>${format !== 'compact' && m.texte ? `<span>${esc(m.texte)}</span>` : ''}${m.lien && format !== 'compact' ? ` <a class="w-link" href="${esc(m.lien)}" target="_blank" rel="noopener">En savoir plus ↗</a>` : ''}</div>`).join('')}</div>`
+}
+
+function draw(data: WData) {
+  render(data)
+  const b = bannerHtml(data)
+  if (b) root.insertAdjacentHTML('afterbegin', b)
+}
+
 async function main() {
   try {
-    const res = await fetch(`./data/${reseau}/widget-${commune}.json`, { cache: 'no-cache' })
+    const [res, msg, lieux] = await Promise.all([fetch(`./data/${reseau}/widget-${commune}.json`, { cache: 'no-cache' }), contenu('messages.json'), contenu('lieux.json')])
     if (!res.ok) throw new Error(String(res.status))
     const data: WData = await res.json()
-    render(data)
-    setInterval(() => render(data), 30_000)
+    messages = Array.isArray(msg?.messages) ? msg.messages : []
+    if (lieux) {
+      const masques = new Set((lieux.masques ?? []).filter((m: any) => m.commune === commune).map((m: any) => m.cle))
+      data.lieux = (data.lieux ?? []).filter(([n, , , lat, lon]) => !masques.has(`${n}|${lat.toFixed(5)}|${lon.toFixed(5)}`))
+      for (const a of lieux.ajouts ?? []) if (a.commune === commune) data.lieux.push([a.nom, a.cat, a.cat, a.lat, a.lon])
+    }
+    draw(data)
+    setInterval(() => draw(data), 30_000)
   } catch {
     root.innerHTML = `<p class="w-muted">Horaires indisponibles pour le moment. <a class="w-link" href="${esc(lien)}" target="_blank" rel="noopener">Ouvrir le calculateur ↗</a></p>`
     root.removeAttribute('aria-busy')

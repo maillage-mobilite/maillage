@@ -451,3 +451,7 @@ table.quality td { padding: 5px 4px; border-bottom: 1px solid var(--line); }
 .sch-h { font-size: 13px; margin: 12px 0 4px; }
 .sch-var { margin: 0; padding-left: 0; list-style: none; font-size: 14px; display: grid; gap: 6px; }
 .sch-var small { color: var(--muted); }
+/* messages des mairies (espace mairie) */
+.mairie-msgs { margin: 4px 0 12px; }
+.mairie-msg { border-left: 4px solid var(--brand, #0f3d3e); }
+.mairie-msg.warn { border-left-color: var(--warn-ink, #9a3412); background: var(--warn-bg, #fdeee6); }

@@ -100,8 +100,9 @@ function editeurTraces(): Plugin {
 export default defineConfig({
   plugins: [preact(), editeurTraces()],
   base: './',
-  server: { port: 5199, strictPort: true },
-  // deux pages publiées : l'application et l'encart « prochains départs » pour les sites des communes
+  // /api/mairie : serveur de l'espace mairie (npm run mairie, port 8090)
+  server: { port: 5199, strictPort: true, proxy: { '/api/mairie': 'http://localhost:8090' } },
+  // trois pages publiées : l'application, l'encart « prochains départs » pour les sites des communes et l'espace mairie
   // (editeur.html, l'éditeur de tracés, n'est servi que par le serveur de développement)
-  build: { rollupOptions: { input: { main: 'index.html', widget: 'widget.html' } } },
+  build: { rollupOptions: { input: { main: 'index.html', widget: 'widget.html', mairie: 'mairie.html' } } },
 })

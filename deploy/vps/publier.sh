@@ -145,6 +145,14 @@ if [ "$MODE" != "aucun" ]; then
   printf '{"date": "%s", "mode": "%s", "commit": "%s", "pipeline": "%s"}\n' "$(h)" "$MODE" "$commit" "$pipeline" > "$BASE/etat.json"
 fi
 
+# espace mairie : le code est monté depuis le dépôt, on relance le service quand il a changé
+mairie=$(git rev-parse --short HEAD:demonstrateur/mairie 2>/dev/null || true)
+if [ -n "$mairie" ] && [ "$(cat "$BASE/mairie.version" 2>/dev/null)" != "$mairie" ] && [ -n "$(docker ps -q -f name=^maillage-mairie$)" ]; then
+  log "Espace mairie modifié : redémarrage du service"
+  (cd "$BASE" && docker compose -f compose.yml -f compose.domain.yml up -d --build --quiet-pull mairie)
+  printf '%s\n' "$mairie" > "$BASE/mairie.version"
+fi
+
 if [ "${1:-}" = "--quotidien" ]; then
   # flux qui expirent sans nouvelle version, fenêtre d'horaires trop courte : échec → e-mail
   log "Contrôle des échéances"

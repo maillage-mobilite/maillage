@@ -39,3 +39,7 @@ body { font: 16px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'He
   background: var(--accent); color: var(--accent-ink, #fff); font-weight: 700; text-decoration: none; align-self: flex-start; gap: 6px; }
 .w-btn:hover { filter: brightness(1.1); }
 .w-credit { font-size: 12.5px; }
+/* messages de la mairie (espace mairie) */
+.w-msgs { display: grid; gap: 6px; margin: 0 0 10px; }
+.w-msg { border-left: 4px solid var(--accent, #0f3d3e); background: #f3f6f6; padding: 6px 10px; border-radius: 6px; font-size: 14px; display: flex; flex-direction: column; gap: 2px; }
+.w-msg.warn { border-left-color: #b45309; background: #fdf1e6; }

@@ -1,7 +1,7 @@
 // Modèle de données du réseau + fonctions horaires (prochains départs, calendriers).
 // Toutes les heures sont en secondes depuis minuit, heure de Paris.
 import { useEffect, useState } from 'preact/hooks'
-import { dataUrl } from './tenant'
+import { contenusUrl, dataUrl } from './tenant'
 
 export type Kind = 'urbain' | 'scolaire' | 'tad' | 'region' | 'train'
 
@@ -268,18 +268,51 @@ export interface Pois { source: string; categories: PoiCategory[]; pois: Poi[] }
 
 export async function loadPois(): Promise<Pois | null> {
   try {
-    const res = await fetch(dataUrl('pois.json'))
+    const [res, extra] = await Promise.all([fetch(dataUrl('pois.json')), loadLieuxMairie()])
     if (!res.ok) return null
     const d = await res.json()
     if (!Array.isArray(d?.pois)) return null
-    return {
-      source: d.source,
-      categories: d.categories,
-      pois: d.pois.map(([name, cat, type, commune, lat, lon, x]: any[], i: number) => ({
-        i, name, cat, type, commune, lat, lon, hours: x?.h, phone: x?.t, web: x?.w, access: x?.a,
-      })),
+    // lieux masqués par une mairie (clé nom|lat|lon) et lieux qu'elle a ajoutés
+    const masques = new Set(extra.masques.map(m => m.cle))
+    const osm = d.pois.filter(([name, , , , lat, lon]: any[]) => !masques.has(`${name}|${lat.toFixed(5)}|${lon.toFixed(5)}`))
+    const cats: PoiCategory[] = d.categories
+    const pois: Poi[] = osm.map(([name, cat, type, commune, lat, lon, x]: any[], i: number) => ({
+      i, name, cat, type, commune, lat, lon, hours: x?.h, phone: x?.t, web: x?.w, access: x?.a,
+    }))
+    for (const a of extra.ajouts) {
+      pois.push({ i: pois.length, name: a.nom, cat: a.cat, type: cats.find(c => c.id === a.cat)?.label ?? a.cat, commune: a.commune_nom ?? '',
+        lat: a.lat, lon: a.lon, hours: a.horaires || undefined, phone: a.tel || undefined, web: a.web || undefined })
     }
+    return { source: d.source, categories: cats, pois }
   } catch { return null }
+}
+
+// ------------------------------------------------------------------ contenus des mairies (espace mairie)
+
+export interface MairieMessage {
+  id: string; commune: string; commune_nom: string; titre: string; texte: string; debut: string; fin: string
+  gravite: 'info' | 'perturbation'; lignes: string[]; arrets: string[]; lien: string
+}
+interface LieuxMairie { ajouts: { nom: string; cat: string; lat: number; lon: number; horaires: string; tel: string; web: string; commune: string; commune_nom?: string }[]; masques: { commune: string; cle: string }[] }
+
+async function loadLieuxMairie(): Promise<LieuxMairie> {
+  try {
+    const r = await fetch(contenusUrl('lieux.json'), { cache: 'no-cache' })
+    if (r.ok) { const d = await r.json(); return { ajouts: d.ajouts ?? [], masques: d.masques ?? [] } }
+  } catch { /* pas de contenu publié */ }
+  return { ajouts: [], masques: [] }
+}
+
+let messagesOnce: Promise<MairieMessage[]> | null = null
+/** Messages des mairies en cours ou à venir (fin non dépassée), chargés une fois. */
+export function useMessages(): MairieMessage[] {
+  const [m, setM] = useState<MairieMessage[]>([])
+  useEffect(() => {
+    (messagesOnce ??= fetch(contenusUrl('messages.json'), { cache: 'no-cache' })
+      .then(r => (r.ok ? r.json() : { messages: [] })).then(d => (Array.isArray(d.messages) ? d.messages : [])).catch(() => [])).then(setM)
+  }, [])
+  const today = parisNow().date
+  return m.filter(x => x.fin >= today)
 }
 
 let poisOnce: Promise<Pois | null> | null = null

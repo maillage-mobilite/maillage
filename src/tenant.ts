@@ -13,6 +13,9 @@ const base = import.meta.env.BASE_URL
 /** Adresse d'un fichier de données du territoire courant. */
 export const dataUrl = (file: string) => `${base}data/${TENANT}/${file}`
 
+/** Contenus publiés par les mairies (espace mairie) : contenus/<territoire>/messages.json, lieux.json. */
+export const contenusUrl = (file: string) => `${base}contenus/${TENANT}/${file}`
+
 export async function loadTenants(): Promise<TenantEntry[]> {
   const res = await fetch(`${base}data/tenants.json`, { cache: 'no-cache' })
   if (!res.ok) throw new Error(`Liste des territoires indisponible (${res.status})`)

@@ -19,21 +19,7 @@ SRC="$(cd "$(dirname "$0")/.." && pwd)"
 SSH=(ssh -i "$KEY" -o BatchMode=yes "$HOST")
 MODE="${1:-}"
 
-if [[ "$MODE" == "--config" ]]; then
-  # --inplace : nginx.conf est monté seul dans le conteneur, qui suit l'inode du fichier (un remplacement ne serait pas vu)
-  rsync -az --inplace -e "ssh -i $KEY -o BatchMode=yes" "$SRC/deploy/compose.yml" "$SRC/deploy/compose.domain.yml" "$SRC/deploy/nginx.conf" "$HOST:$DIR/"
-  # sans fichier de comptes, le montage Docker échouerait : on crée un fichier vide (nginx refuse alors tout accès)
-  "${SSH[@]}" "[ -f $DIR/private/htpasswd ] || { sudo touch $DIR/private/htpasswd; sudo chown root:101 $DIR/private/htpasswd; sudo chmod 640 $DIR/private/htpasswd; }"
-  if [[ "$(dig +short maillage.tuatam.fr A | tail -1)" == "57.129.163.124" ]]; then
-    "${SSH[@]}" "cd $DIR && sudo docker compose -f compose.yml -f compose.domain.yml up -d"
-  else
-    echo "DNS pas encore pointé : conteneur lancé sans domaine"
-    "${SSH[@]}" "cd $DIR && sudo docker compose -f compose.yml up -d"
-  fi
-  "${SSH[@]}" "sudo docker exec maillage-web nginx -t && sudo docker exec maillage-web nginx -s reload"
-  MODE=""
-fi
-
+CONFIG=0; [[ "$MODE" == "--config" ]] && { CONFIG=1; MODE=""; }
 case "$MODE" in
   "") UNIT=maillage-publication ;;
   --donnees) UNIT=maillage-maj-donnees ;;
@@ -52,6 +38,23 @@ if [[ "$UNIT" != maillage-retour ]]; then
   fi
   GIT_SSH_COMMAND="ssh -i $KEY -o BatchMode=yes" git push -q --force "ssh://$HOST$DIR/depot.git" "$rev:refs/heads/main"
   echo "Code envoyé au VPS : $etat"
+fi
+
+if [[ $CONFIG == 1 ]]; then
+  # --inplace : nginx.conf est monté seul dans le conteneur, qui suit l'inode du fichier (un remplacement ne serait pas vu)
+  rsync -az --inplace -e "ssh -i $KEY -o BatchMode=yes" "$SRC/deploy/compose.yml" "$SRC/deploy/compose.domain.yml" "$SRC/deploy/nginx.conf" "$HOST:$DIR/"
+  # sans fichier de comptes, le montage Docker échouerait : on crée un fichier vide (nginx refuse alors tout accès)
+  # copie de travail à jour avant la construction des conteneurs (le service « mairie » est construit depuis le dépôt)
+  "${SSH[@]}" "cd $DIR/depot && git fetch -q origin && git reset -q --hard origin/main"
+  "${SSH[@]}" "mkdir -p $DIR/espace $DIR/contenus && { [ -f $DIR/espace/comptes.json ] || echo '{\"comptes\": []}' > $DIR/espace/comptes.json; }"
+  "${SSH[@]}" "[ -f $DIR/private/htpasswd ] || { sudo touch $DIR/private/htpasswd; sudo chown root:101 $DIR/private/htpasswd; sudo chmod 640 $DIR/private/htpasswd; }"
+  if [[ "$(dig +short maillage.tuatam.fr A | tail -1)" == "57.129.163.124" ]]; then
+    "${SSH[@]}" "cd $DIR && sudo docker compose -f compose.yml -f compose.domain.yml up -d --build"
+  else
+    echo "DNS pas encore pointé : conteneur lancé sans domaine"
+    "${SSH[@]}" "cd $DIR && sudo docker compose -f compose.yml up -d --build"
+  fi
+  "${SSH[@]}" "sudo docker exec maillage-web nginx -t && sudo docker exec maillage-web nginx -s reload"
 fi
 
 debut=$(date +%s)

@@ -2,7 +2,7 @@
 import { BRAND } from './brand'
 import { createContext, type ComponentChildren } from 'preact'
 import { useContext } from 'preact/hooks'
-import { Network, Route, fmtHM, fmtDay, addDays } from './net'
+import { Network, Route, fmtHM, fmtDay, addDays, parisNow, type MairieMessage } from './net'
 
 const PATHS: Record<string, string> = {
   map: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Zm0 0v14m6-12v14',
@@ -125,4 +125,33 @@ export function TheoNotice() {
 export function routeLabel(net: Network, r: number) {
   const route = net.routes[r]
   return `${route.short} — ${route.long}`
+}
+
+/** Messages publiés par les mairies (travaux, arrêt déplacé, événement), du plus urgent au moins urgent. */
+export function MairieMessages({ messages, title }: { messages: MairieMessage[]; title?: string }) {
+  if (!messages.length) return null
+  const today = parisNow().date
+  const fmt = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' })
+  const sorted = [...messages].sort((a, b) => (a.debut > today ? 1 : 0) - (b.debut > today ? 1 : 0) || (a.gravite === b.gravite ? a.debut.localeCompare(b.debut) : a.gravite === 'perturbation' ? -1 : 1))
+  return (
+    <section class="mairie-msgs" aria-label={title ?? 'Messages des mairies'}>
+      {title && <h3 class="section-title">{title}</h3>}
+      {sorted.map(m => {
+        const upcoming = m.debut > today
+        return (
+          <article key={m.id} class={`card static alert-card mairie-msg${m.gravite === 'perturbation' ? ' warn' : ''}`}>
+            <Icon name={m.gravite === 'perturbation' ? 'alert' : 'data'} />
+            <div>
+              <strong>{m.titre}</strong>
+              {m.texte && <div class="small">{m.texte}</div>}
+              <div class="small muted">
+                {upcoming ? `À partir du ${fmt(m.debut)}` : `Jusqu'au ${fmt(m.fin)}`}{m.lignes.length ? ` · ligne${m.lignes.length > 1 ? 's' : ''} ${m.lignes.join(', ')}` : ''} · Mairie {/^[aeiouyhâéèêîôûAEIOUYHÉÈÊÎÔÛ]/.test(m.commune_nom) ? `d'${m.commune_nom}` : `de ${m.commune_nom}`}
+              </div>
+              {m.lien && <a class="small" href={m.lien} target="_blank" rel="noopener">En savoir plus ↗</a>}
+            </div>
+          </article>
+        )
+      })}
+    </section>
+  )
 }

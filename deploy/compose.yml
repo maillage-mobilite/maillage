@@ -17,11 +17,39 @@ services:
       - ./private/htpasswd:/etc/nginx/htpasswd:ro
       # mesure d'usage anonyme (usage.log, sans IP), lue par demonstrateur/deploy/stats.sh
       - ./logs:/var/log/maillage
-    networks: [coolify]
+      # messages et lieux publiés par les mairies (écrits par le service « mairie »)
+      - ./contenus:/usr/share/nginx/contenus:ro
+    networks: [coolify, interne]
     labels:
       traefik.enable: "true"
       traefik.docker.network: coolify
       traefik.http.services.maillage.loadbalancer.server.port: "80"
+  # Espace mairie (mairie/serveur.py) : joignable seulement par nginx (/api/mairie/), jamais directement
+  mairie:
+    build: ./depot/demonstrateur/mairie
+    image: maillage-mairie
+    container_name: maillage-mairie
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+    environment:
+      ESPACE_DIR: /espace
+      CONTENUS_DIR: /contenus
+      DONNEES_DIR: /maillage/donnees
+      ENCARTS_FILE: /maillage/depot/demonstrateur/pipeline/encarts.json
+      USAGE_LOG: /maillage/logs/usage.log
+      ORIGIN: https://maillage.tuatam.fr
+      MAIL: msmtp
+    volumes:
+      - ./depot/demonstrateur/mairie:/app:ro
+      - ./espace:/espace
+      - ./contenus:/contenus
+      # données en ligne, registre des communes, journal d'usage (dossier parent : donnees/ est renommé à chaque mise à jour)
+      - .:/maillage:ro
+      - /srv/sites/_mail/msmtprc:/run/secrets-msmtp/msmtprc:ro
+    networks: [interne]
 networks:
   coolify:
     external: true
+  interne: {}
