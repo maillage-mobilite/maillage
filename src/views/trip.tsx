@@ -126,7 +126,7 @@ export function PlaceInput({ net, label, value, placeholder, onPick, near, autoF
   )
 }
 
-/** « Mairie d'Ornex » reste tel quel ; « École des Bois » devient « École des Bois, Ornex ». */
+/** « Mairie de Bourg » reste tel quel ; « École des Tilleuls » devient « École des Tilleuls, Bourg ». */
 const poiLabel = (s: Suggestion) => {
   const commune = s.detail.split(' · ').pop() ?? ''
   return commune && !s.label.toLowerCase().includes(commune.toLowerCase()) ? `${s.label}, ${commune}` : s.label

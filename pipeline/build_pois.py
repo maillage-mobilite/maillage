@@ -227,8 +227,8 @@ def main():
             extra["a"] = tags["wheelchair"]
         out.append([name, cat, label, commune, round(la, 6), round(lo, 6), extra])
 
-    # commune : limites administratives OSM (l'arrêt le plus proche porte parfois le nom d'un hameau :
-    # Maconnex pour Ornex) ; à défaut, nom de l'arrêt le plus proche
+    # commune : limites administratives OSM (l'arrêt le plus proche porte parfois le nom d'un hameau
+    # plutôt que celui de la commune) ; à défaut, nom de l'arrêt le plus proche
     try:
         communes = osm_communes([(p[4], p[5]) for p in out], bbox, args.cache, tenant)
         for p, c in zip(out, communes):

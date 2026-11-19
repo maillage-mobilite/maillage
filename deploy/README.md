@@ -60,7 +60,7 @@ Seuls `/widget.html`, ses fichiers `assets/widget-*` et `assets/modulepreload-po
 `data/<territoire>/widget-<commune>.json` sont servis sans mot de passe (voir `nginx.conf`). Tout le reste
 demande toujours un compte. Pour qu'une autre commune puisse intégrer l'encart, ajouter son domaine à la
 directive `frame-ancestors` de `nginx.conf` puis lancer `./deploy/deploy-vps.sh --config`.
-Code à coller dans le site de la commune : `encart-ornex.html` (exemple pour Ornex).
+Code à coller dans le site de la commune : modèle `encart-exemple.html`, ou l'onglet Encart de l'espace mairie.
 
 ## Mesure d'usage (sans IP ni cookie)
 

@@ -7,8 +7,8 @@ Le fichier produit (quelques dizaines de Ko au lieu de ~1 Mo) suffit à afficher
 de tous les jours de la fenêtre du réseau (60 jours) : chaque passage renvoie à un calendrier.
 
 Usage :
-    python3 -I pipeline/build_widget.py public/data/paysdegex --slug ornex --name Ornex \
-        --places "Ornex, Fruitière" "Ornex, Les Roussets" "Ornex, Prénépla"
+    python3 -I pipeline/build_widget.py public/data/<territoire> --slug <commune> --name "<Nom>" \
+        --places "<pôle d'arrêt 1>" "<pôle d'arrêt 2>"
 """
 import argparse, json, os, sys
 
@@ -65,6 +65,7 @@ def main():
         "generated_at": net["generated_at"],
         "tenant": net["tenant"]["tenant"],
         "name": args.name,
+        "territory": net["tenant"].get("territory"),
         "window_start": net["window_start"],
         "window_days": net["window_days"],
         # fin de validité des flux utilisés par l'encart : au-delà, l'encart annonce une mise à jour

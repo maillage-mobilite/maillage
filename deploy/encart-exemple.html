@@ -1,0 +1,43 @@
+<!-- Encarts Maillage pour le site d'une commune : à coller dans un bloc « HTML personnalisé » (WordPress ou autre).
+     Remplacer TERRITOIRE (identifiant du territoire, fichier pipeline/tenants/<territoire>.json), COMMUNE
+     (identifiant de la commune dans pipeline/encarts.json), NOM (nom affiché) et LIEU (format venir).
+     Trois formats, à placer chacun sur la page qui convient ; chaque iframe s'ajuste toute seule à son contenu.
+     Le script en bas de ce fichier est à coller UNE fois par page (il sert à tous les encarts de la page).
+     Paramètres : format (complet | compact | venir), lieu (format venir), couleur (hexadécimal sans #),
+     id (identifiant unique de l'encart sur la page, repris dans data-maillage).
+     L'espace mairie (onglet Encart) génère ce code déjà rempli. -->
+
+<!-- 1. Encart complet : page « Transports publics » -->
+<iframe
+  src="https://maillage.tuatam.fr/widget.html?reseau=TERRITOIRE&amp;commune=COMMUNE&amp;id=COMMUNE"
+  title="Prochains départs des bus aux arrêts de NOM"
+  loading="lazy"
+  style="width:100%;max-width:720px;height:560px;border:1px solid #e2ded6;display:block"
+  data-maillage="COMMUNE"></iframe>
+
+<!-- 2. Bandeau compact : page d'accueil ou colonne latérale -->
+<iframe
+  src="https://maillage.tuatam.fr/widget.html?reseau=TERRITOIRE&amp;commune=COMMUNE&amp;format=compact&amp;id=COMMUNE-compact"
+  title="Prochains bus à NOM"
+  loading="lazy"
+  style="width:100%;max-width:720px;height:150px;border:1px solid #e2ded6;display:block"
+  data-maillage="COMMUNE-compact"></iframe>
+
+<!-- 3. « Comment venir » : page d'un équipement (ici la mairie). LIEU = nom du lieu tel qu'il apparaît
+     dans les données OpenStreetMap de la commune (liste « lieux » de data/<territoire>/widget-<commune>.json),
+     encodé pour une adresse (espace = %20) ; une partie du nom suffit. -->
+<iframe
+  src="https://maillage.tuatam.fr/widget.html?reseau=TERRITOIRE&amp;commune=COMMUNE&amp;format=venir&amp;lieu=LIEU&amp;id=COMMUNE-mairie"
+  title="Venir en bus à la mairie de NOM"
+  loading="lazy"
+  style="width:100%;max-width:520px;height:420px;border:1px solid #e2ded6;display:block"
+  data-maillage="COMMUNE-mairie"></iframe>
+
+<!-- Script commun (une fois par page) : ajuste la hauteur de chaque encart à son contenu. -->
+<script>
+  window.addEventListener('message', function (e) {
+    if (e.origin !== 'https://maillage.tuatam.fr' || !e.data || e.data.type !== 'maillage-widget-height') return;
+    var f = document.querySelector('iframe[data-maillage="' + String(e.data.commune).replace(/[^a-z0-9-]/gi, '') + '"]');
+    if (f && e.data.height > 40 && e.data.height < 3000) f.style.height = e.data.height + 'px';
+  });
+</script>

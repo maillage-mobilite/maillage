@@ -3,7 +3,7 @@ import { BRAND } from './brand'
 // Page autonome et légère : ni carte ni calcul d'itinéraire, seulement les passages aux arrêts
 // de la commune (data/<territoire>/widget-<commune>.json, produit par pipeline/build_widget.py).
 //
-// Paramètres d'adresse : ?reseau=paysdegex&commune=ornex
+// Paramètres d'adresse : ?reseau=<territoire>&commune=<commune>
 //   &format=complet (défaut) | compact (bandeau d'accueil) | venir (« Comment venir » à un lieu, avec &lieu=<nom>)
 //   &couleur=<hexadécimal sans #> (couleur de la commune) · &id=<identifiant de l'iframe> (plusieurs encarts par page)
 //   &lien=<adresse https du calculateur>
@@ -12,7 +12,7 @@ import './widget.css'
 interface WRoute { short: string; long: string; color: string; text: string; kind: string }
 interface WStop { name: string; lat: number; lon: number; deps: [number, number, number, string][] }
 interface WData {
-  name: string; generated_at: string; window_start: string; window_days: number; valid_until?: string | null; operator_url?: string | null
+  name: string; generated_at: string; window_start: string; window_days: number; valid_until?: string | null; operator_url?: string | null; territory?: string | null
   routes: WRoute[]; services: string[]; stops: WStop[]
   /** lieux de la commune (OpenStreetMap) : [nom, catégorie, type, lat, lon] */
   lieux?: [string, string, string, number, number][]
@@ -102,7 +102,9 @@ function rowsHtml(data: WData, groups: ReturnType<typeof groupsOf>, max = 99) {
       </li>`).join('')
 }
 
-const credit = `<p class="w-muted w-credit">Horaires théoriques, sans retards en temps réel. Données : Pays de Gex Agglo (Licence Ouverte) · <a href="./a-propos.html" target="_blank" rel="noopener">${BRAND.name}, service indépendant</a>.</p>`
+// source des horaires : la collectivité du territoire (encarts construits avant son ajout : mention générique)
+const source = (data: WData) => (data.territory ? `${esc(data.territory)} (Licence Ouverte)` : 'données ouvertes (Licence Ouverte)')
+const credit = (data: WData) => `<p class="w-muted w-credit">Horaires théoriques, sans retards en temps réel. Données : ${source(data)} · <a href="./a-propos.html" target="_blank" rel="noopener">${BRAND.name}, service indépendant</a>.</p>`
 const linkHtml = (href: string, label: string, cls = 'w-link') =>
   `<a class="${cls}" href="${esc(href)}" target="_blank" rel="noopener">${label}<span class="sr"> (nouvel onglet)</span> ↗</a>`
 
@@ -145,7 +147,7 @@ function renderVenir(data: WData, now: { date: string; sec: number }) {
     ${blocks}
     <footer class="w-foot">
       ${linkHtml(vers, 'Itinéraire jusqu’ici', 'w-btn')}
-      ${credit}
+      ${credit(data)}
     </footer>`
 }
 
@@ -196,7 +198,7 @@ function render(data: WData) {
     ${stops}
     <footer class="w-foot">
       <a class="w-link" href="${esc(lien)}" target="_blank" rel="noopener">Calculer un itinéraire<span class="sr"> (nouvel onglet)</span> ↗</a>
-      <p class="w-muted">Horaires théoriques, sans retards en temps réel. Données : Pays de Gex Agglo (Licence Ouverte) · <a href="./a-propos.html" target="_blank" rel="noopener">${BRAND.name}, service indépendant</a>.</p>
+      <p class="w-muted">Horaires théoriques, sans retards en temps réel. Données : ${source(data)} · <a href="./a-propos.html" target="_blank" rel="noopener">${BRAND.name}, service indépendant</a>.</p>
     </footer>`
   root.removeAttribute('aria-busy')
 }

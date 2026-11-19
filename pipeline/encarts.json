@@ -1,5 +1,5 @@
 {
- "_note": "Encarts des communes : un par commune cliente. Construits par pipeline/build_encarts.py après chaque mise à jour des données.",
+ "_note": "Encarts des communes : un par commune. Construits par pipeline/build_encarts.py après chaque mise à jour des données.",
  "encarts": [
   { "territoire": "paysdegex", "slug": "ornex", "nom": "Ornex", "poles": ["Ornex, Fruitière", "Ornex, Les Roussets", "Ornex, Prénépla"] }
  ]
