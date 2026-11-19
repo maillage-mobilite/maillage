@@ -21,9 +21,20 @@
 
 ---
 
-Les petits réseaux publient leurs horaires en open data (GTFS), mais leurs voyageurs n'ont souvent que des fiches PDF.
-**Maillage** transforme ces données en un service web mobile complet, et donne aux communes de quoi l'intégrer à leur
-site et y publier leurs propres messages.
+Les grands réseaux métropolitains (TPG, TCL, RATP…) ont de bonnes applications. Autour d'eux, l'information reste
+morcelée : cars régionaux, transport à la demande, lignes locales, lieux de la commune, travaux annoncés par la mairie.
+**Maillage** réunit tous les réseaux d'un territoire, à partir des horaires publiés en open data (GTFS), dans un service
+web mobile que la commune intègre à son site et où elle publie ses propres messages. Il complète l'application du grand
+réseau, sans la remplacer : temps réel, billets et réservation restent chez lui.
+
+Le principe : **rendre les services compatibles entre eux**. Arrêts rapprochés d'un réseau à l'autre, itinéraires qui
+enchaînent bus, cars et trains, formats ouverts et standards (GTFS, GTFS-RT, et demain GTFS-Flex et GBFS) pour brancher
+un nouveau service sans développement.
+
+Il s'adresse :
+- **aux communes en bordure d'un grand réseau**, comme le Pays de Gex autour de Genève, les communes hors du réseau TCL
+  autour de Lyon ou la grande couronne parisienne ;
+- **aux petits réseaux** qui n'ont pas encore d'application complète, dont les voyageurs n'ont souvent que des fiches PDF.
 
 - 📱 **Rien à installer** : une page web pensée pour le téléphone, sans compte, sans cookie, sans traceur.
 - 🏘️ **Pensé pour les territoires** : bus urbains, cars régionaux, lignes scolaires, transport à la demande et trains
