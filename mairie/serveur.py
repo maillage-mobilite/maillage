@@ -15,7 +15,8 @@ Configuration (variables d'environnement) :
   ENCARTS_FILE  registre des communes (pipeline/encarts.json)
   USAGE_LOG     journal de mesure d'usage nginx (usage.log)
   ORIGIN        adresse publique, ex. https://maillage.tuatam.fr (liens envoyés, contrôle des requêtes)
-  MAIL          « msmtp » (relais du VPS) ou « console » (développement : le lien s'affiche dans le terminal)
+  MAIL          « msmtp » (relais du VPS), « smtp » (développement : Mailpit, SMTP_HOST/SMTP_PORT, défaut localhost:1025)
+                ou « console » (le lien s'affiche dans le terminal). En « smtp », si le serveur ne répond pas, le lien s'affiche aussi.
   BRAND_FILE    nom et contact du service (brand.json, relu à chaque envoi)   [défaut : ../brand.json]
   PORT          port d'écoute (défaut 8090)
 
@@ -24,10 +25,12 @@ Usage : python3 -I mairie/serveur.py
 import collections
 import datetime as dt
 import hashlib
+import html
 import json
 import os
 import re
 import secrets
+import smtplib
 import sqlite3
 import subprocess
 import sys
@@ -47,6 +50,8 @@ ENCARTS_FILE = os.environ.get("ENCARTS_FILE", os.path.join(HERE, "..", "pipeline
 USAGE_LOG = os.environ.get("USAGE_LOG", "")
 ORIGIN = os.environ.get("ORIGIN", "http://localhost:5199").rstrip("/")
 MAIL = os.environ.get("MAIL", "console")
+SMTP_HOST = os.environ.get("SMTP_HOST", "localhost")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "1025"))
 BRAND_FILE = os.environ.get("BRAND_FILE", os.path.join(HERE, "..", "brand.json"))
 PORT = int(os.environ.get("PORT", "8090"))
 
@@ -332,8 +337,29 @@ def envoyer_lien(email, nom, jeton):
         f"Il est valable {JETON_MIN} minutes et ne sert qu'une fois.\n"
         "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : rien ne change sans ce lien.\n\n"
         f"{nom_service} · {contact}\n")
+    e = html.escape
+    msg.add_alternative(f"""<!doctype html><html lang="fr"><body style="margin:0;background:#f4f2ee;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#16201f">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2ee;padding:32px 16px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;border:1px solid #e2ded6">
+<tr><td style="padding:28px 32px 8px"><span style="display:inline-block;width:22px;height:22px;border-radius:6px;background:#0f3d3e;vertical-align:middle"></span>
+<strong style="font-size:17px;vertical-align:middle;margin-left:8px">{e(nom_service)}</strong> <span style="color:#5d6866;font-size:15px;vertical-align:middle">· Espace mairie</span></td></tr>
+<tr><td style="padding:16px 32px 0"><h1 style="font-size:22px;line-height:1.3;margin:0 0 12px">Bonjour,</h1>
+<p style="font-size:16px;line-height:1.5;margin:0 0 24px">Voici votre lien pour ouvrir l'espace mairie de <strong>{e(nom)}</strong>.</p>
+<p style="margin:0 0 24px"><a href="{e(url)}" style="display:inline-block;background:#0f3d3e;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;padding:14px 22px;border-radius:10px">Ouvrir l'espace mairie</a></p>
+<p style="font-size:14px;line-height:1.5;color:#5d6866;margin:0 0 8px">Le lien est valable {JETON_MIN} minutes et ne sert qu'une fois. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : rien ne change sans ce lien.</p>
+<p style="font-size:13px;line-height:1.5;color:#5d6866;margin:0 0 24px;word-break:break-all">Le bouton ne s'ouvre pas ? Copiez cette adresse : {e(url)}</p></td></tr>
+<tr><td style="padding:16px 32px 24px;border-top:1px solid #e2ded6;font-size:13px;color:#5d6866">{e(nom_service)} · {e(contact)}</td></tr>
+</table></td></tr></table></body></html>""", subtype="html")
     if MAIL == "msmtp":
         subprocess.run(["msmtp", "-t"], input=msg.as_bytes(), check=True, timeout=60)
+    elif MAIL == "smtp":
+        msg["From"] = f"{nom_service} <espace-mairie@localhost>"
+        try:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as smtp:
+                smtp.send_message(msg)
+            log(f"[e-mail pour {email}] déposé dans Mailpit ({SMTP_HOST}:{SMTP_PORT})")
+        except OSError as err:
+            log(f"[e-mail pour {email}] SMTP indisponible ({err}) : {url}")
     else:
         log(f"[e-mail pour {email}] {url}")
 
