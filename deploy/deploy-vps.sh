@@ -51,6 +51,11 @@ if [[ $CONFIG == 1 ]]; then
   "${SSH[@]}" "cd $DIR/depot && git fetch -q origin && git reset -q --hard origin/main"
   "${SSH[@]}" "mkdir -p $DIR/espace $DIR/contenus && { [ -f $DIR/espace/comptes.json ] || echo '{\"comptes\": []}' > $DIR/espace/comptes.json; }"
   "${SSH[@]}" "[ -f $DIR/private/htpasswd ] || { sudo touch $DIR/private/htpasswd; sudo chown root:101 $DIR/private/htpasswd; sudo chmod 640 $DIR/private/htpasswd; }"
+  # sites autorisés à afficher l'encart : ENCART_SITES (deploy/config.sh, privé) ; écrit en place (même inode,
+  # le fichier étant monté seul dans le conteneur) et avant « compose up » (sinon Docker créerait un dossier)
+  [[ "${ENCART_SITES:-}" =~ ^[a-zA-Z0-9.:/\ -]*$ ]] || { echo "ENCART_SITES : caractère non autorisé" >&2; exit 1; }
+  printf 'add_header Content-Security-Policy "frame-ancestors %s" always;\n' "'self' ${ENCART_SITES:-}" \
+    | "${SSH[@]}" "sudo tee $DIR/private/encart-sites.conf >/dev/null && sudo chmod 644 $DIR/private/encart-sites.conf"
   if [[ "$(dig +short maillage.tuatam.fr A | tail -1)" == "$VPS_IP" ]]; then
     "${SSH[@]}" "cd $DIR && sudo docker compose -f compose.yml -f compose.domain.yml up -d --build"
   else

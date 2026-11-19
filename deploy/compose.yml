@@ -15,6 +15,8 @@ services:
       - ./site:/usr/share/nginx/html:ro
       # comptes d'accès (hors dossier web) : private/htpasswd, root:101 640 (101 = nginx dans l'image alpine)
       - ./private/htpasswd:/etc/nginx/htpasswd:ro
+      # sites autorisés à afficher l'encart (frame-ancestors), écrit par deploy-vps.sh --config
+      - ./private/encart-sites.conf:/etc/nginx/encart-sites.conf:ro
       # mesure d'usage anonyme (usage.log, sans IP), lue par demonstrateur/deploy/stats.sh
       - ./logs:/var/log/maillage
       # messages et lieux publiés par les mairies (écrits par le service « mairie »)

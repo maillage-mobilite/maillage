@@ -58,8 +58,8 @@ avant une diffusion large.
 
 Seuls `/widget.html`, ses fichiers `assets/widget-*` et `assets/modulepreload-polyfill-*`, et les
 `data/<territoire>/widget-<commune>.json` sont servis sans mot de passe (voir `nginx.conf`). Tout le reste
-demande toujours un compte. Pour qu'une autre commune puisse intégrer l'encart, ajouter son domaine à la
-directive `frame-ancestors` de `nginx.conf` puis lancer `./deploy/deploy-vps.sh --config`.
+demande toujours un compte. Pour qu'une autre commune puisse intégrer l'encart, ajouter son domaine à
+`ENCART_SITES` dans `config.sh` (privé) puis lancer `./deploy/deploy-vps.sh --config`.
 Code à coller dans le site de la commune : modèle `encart-exemple.html`, ou l'onglet Encart de l'espace mairie.
 
 ## Mesure d'usage (sans IP ni cookie)
