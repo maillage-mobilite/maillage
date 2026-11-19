@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>À propos · Maillage</title>
-  <meta name="description" content="Mentions légales, confidentialité, accessibilité et contact du service Maillage." />
+  <title>À propos · {{NOM}}</title>
+  <meta name="description" content="Mentions légales, confidentialité, accessibilité et contact du service {{NOM}}." />
   <style>
     :root { color-scheme: light dark; --text: #16201f; --muted: #5d6866; --line: #e2ded6; --bg: #fbfaf7; --surface: #fff; --accent: #0f3d3e; }
     @media (prefers-color-scheme: dark) { :root { --text: #eef1ef; --muted: #a7b1ae; --line: #2e3533; --bg: #121615; --surface: #1a1f1e; --accent: #8fd3c9; } }
@@ -30,8 +30,8 @@
 </head>
 <body>
 <main>
-  <a class="back" href="./">← Retour à Maillage</a>
-  <h1>À propos de Maillage</h1>
+  <a class="back" href="./">← Retour à {{NOM}}</a>
+  <h1>À propos de {{NOM}}</h1>
   <p class="muted">Horaires, prochains départs et itinéraires des bus, cars et trains des petits territoires, construits à partir des données publiées en open data par les réseaux.</p>
   <nav class="toc" aria-label="Sur cette page">
     <a href="#mentions">Mentions légales</a><a href="#donnees">Données et responsabilité</a><a href="#confidentialite">Confidentialité</a><a href="#accessibilite">Accessibilité</a><a href="#contact">Contact</a>
@@ -43,13 +43,13 @@
     <dt>Éditeur</dt><dd>Roland Louche, entrepreneur individuel (TUATAM, studio web)</dd>
     <dt>SIRET</dt><dd>533 908 810 00039</dd>
     <dt>Adresse</dt><dd>11 petit chemin de la Muette, 07100 Annonay, France</dd>
-    <dt>E-mail</dt><dd><a href="mailto:contact@tuatam.fr">contact@tuatam.fr</a></dd>
+    <dt>E-mail</dt><dd><a href="mailto:{{CONTACT}}">{{CONTACT}}</a></dd>
     <dt>Directeur de la publication</dt><dd>Roland Louche</dd>
   </dl>
   <h3>Hébergement</h3>
   <p>OVH SAS, 2 rue Kellermann, 59100 Roubaix, France (RCS Lille Métropole 424 761 419), <a href="https://www.ovhcloud.com/" rel="noopener">ovhcloud.com</a>. Serveur situé à Londres (Royaume-Uni).</p>
   <h3>Indépendance</h3>
-  <p>Maillage est un service indépendant. Il n'est affilié à aucun réseau de transport ni à aucune collectivité, sauf mention contraire sur la page du territoire. Les noms et marques des réseaux appartiennent à leurs titulaires.</p>
+  <p>{{NOM}} est un service indépendant. Il n'est affilié à aucun réseau de transport ni à aucune collectivité, sauf mention contraire sur la page du territoire. Les noms et marques des réseaux appartiennent à leurs titulaires.</p>
 
   <h2 id="donnees">Données et responsabilité</h2>
   <p>Les horaires sont les <strong>horaires théoriques</strong> publiés par les réseaux. Ils ne tiennent pas compte des retards, travaux ou déviations, sauf quand le réseau publie ces informations en temps réel (trains SNCF). <strong>En cas de doute, l'information officielle du réseau fait foi.</strong> Les données sont mises à jour automatiquement chaque jour où un réseau publie une nouvelle version, et au moins chaque semaine ; un contrôle bloque la publication de données incomplètes.</p>
@@ -64,10 +64,10 @@
       <tr><td>Photographies aériennes</td><td>IGN (<a href="https://geoservices.ign.fr/" rel="noopener">Géoplateforme</a>)</td><td>Licence Ouverte (Etalab)</td></tr>
     </tbody>
   </table></div>
-  <p>Une erreur d'horaire ou d'arrêt ? Le lien <em>Signaler un problème</em> des fiches ligne et arrêt prépare un message avec le contexte. Le message est adressé au réseau concerné quand il publie une adresse de contact, avec copie à l'éditeur de Maillage ; sinon à l'éditeur, qui le transmet.</p>
+  <p>Une erreur d'horaire ou d'arrêt ? Le lien <em>Signaler un problème</em> des fiches ligne et arrêt prépare un message avec le contexte. Le message est adressé au réseau concerné quand il publie une adresse de contact, avec copie à l'éditeur de {{NOM}} ; sinon à l'éditeur, qui le transmet.</p>
 
   <h2 id="confidentialite">Confidentialité</h2>
-  <p><strong>Maillage ne demande aucun compte aux voyageurs, ne leur dépose aucun cookie et n'utilise aucun outil de publicité ou de suivi.</strong></p>
+  <p><strong>{{NOM}} ne demande aucun compte aux voyageurs, ne leur dépose aucun cookie et n'utilise aucun outil de publicité ou de suivi.</strong></p>
   <h3>Ce qui reste sur votre appareil</h3>
   <p>Vos favoris (arrêts, lignes) et vos lieux (domicile, travail, école…) sont enregistrés dans votre navigateur uniquement. Ils ne sont jamais envoyés à nos serveurs. Les effacer : supprimer les données du site dans les réglages du navigateur.</p>
   <h3>Votre position</h3>
@@ -88,12 +88,12 @@
   <h3>Espace mairie</h3>
   <p>Pour les agents des communes clientes : l'adresse e-mail professionnelle enregistrée par l'éditeur, la date de connexion et le journal des publications (qui a publié ou modifié quel message ou lieu, et quand). Ces informations servent uniquement à sécuriser l'accès et à retrouver l'auteur d'une publication ; elles sont supprimées à la fin du contrat. Le lien de connexion est envoyé par e-mail via la messagerie OVH de l'éditeur ; le cookie de session (30 jours) est strictement nécessaire à la connexion.</p>
   <h3>Vos droits</h3>
-  <p>Maillage ne constitue aucun fichier de personnes. Pour toute question sur vos données : <a href="mailto:contact@tuatam.fr">contact@tuatam.fr</a>. Vous pouvez aussi adresser une réclamation à la <a href="https://www.cnil.fr/fr/plaintes" rel="noopener">CNIL</a>.</p>
+  <p>{{NOM}} ne constitue aucun fichier de personnes. Pour toute question sur vos données : <a href="mailto:{{CONTACT}}">{{CONTACT}}</a>. Vous pouvez aussi adresser une réclamation à la <a href="https://www.cnil.fr/fr/plaintes" rel="noopener">CNIL</a>.</p>
 
   <h2 id="accessibilite">Accessibilité</h2>
-  <p>Roland Louche EI s'engage à rendre Maillage accessible conformément à l'article 47 de la loi n° 2005-102 du 11 février 2005. Cette déclaration s'applique à l'application (<code>maillage.tuatam.fr</code>), aux encarts publiés sur les sites des communes et à l'espace mairie.</p>
+  <p>Roland Louche EI s'engage à rendre {{NOM}} accessible conformément à l'article 47 de la loi n° 2005-102 du 11 février 2005. Cette déclaration s'applique à l'application (<code>maillage.tuatam.fr</code>), aux encarts publiés sur les sites des communes et à l'espace mairie.</p>
   <h3>État de conformité</h3>
-  <p><strong>Maillage est non conforme</strong> au <abbr title="Référentiel général d'amélioration de l'accessibilité">RGAA</abbr> 4.1 : aucun audit complet selon la méthode du référentiel n'a encore été réalisé.</p>
+  <p><strong>{{NOM}} est non conforme</strong> au <abbr title="Référentiel général d'amélioration de l'accessibilité">RGAA</abbr> 4.1 : aucun audit complet selon la méthode du référentiel n'a encore été réalisé.</p>
   <p>Une auto-évaluation a été menée le 19 novembre 2026 sur 17 écrans (accueil, carte, fiches de ligne et d'arrêt, itinéraire, info trafic, mes trajets, les trois formats d'encart, cette page, l'espace mairie). Les défauts relevés ont été corrigés : contraste de l'anneau de focus et des bordures, lien d'évitement, zones et titres de page, commandes utilisables au clavier. Les tests automatiques ne signalent plus d'erreur sur ces écrans.</p>
   <h3>Contenus non accessibles ou non encore vérifiés</h3>
   <ul>
@@ -103,7 +103,7 @@
   <h3>Établissement de cette déclaration</h3>
   <p>Déclaration établie le 19 novembre 2026. Technologies utilisées : HTML, CSS, JavaScript, SVG, WAI-ARIA. Vérifications : tests automatiques axe-core 4.10 dans Chrome, navigation au clavier, affichage à 320 px de large et avec un espacement de texte augmenté, calcul des contrastes.</p>
   <h3>Retour d'information et contact</h3>
-  <p>Si vous ne parvenez pas à accéder à une information ou à un service, écrivez à <a href="mailto:contact@tuatam.fr?subject=Accessibilit%C3%A9%20Maillage">contact@tuatam.fr</a> : nous vous répondrons et vous fournirons l'information sous une autre forme. </p>
+  <p>Si vous ne parvenez pas à accéder à une information ou à un service, écrivez à <a href="mailto:{{CONTACT}}?subject=Accessibilit%C3%A9%20Maillage">{{CONTACT}}</a> : nous vous répondrons et vous fournirons l'information sous une autre forme. </p>
   <h3>Voies de recours</h3>
   <p>Si vous nous avez signalé un défaut d'accessibilité qui vous empêche d'accéder à un contenu ou à un service et que vous n'avez pas obtenu de réponse satisfaisante, vous pouvez saisir le Défenseur des droits :</p>
   <ul>
@@ -115,7 +115,7 @@
   <h2 id="contact">Contact</h2>
   <ul>
     <li><strong>Une question sur un horaire, un tarif, une réservation</strong> : le réseau concerné (coordonnées dans l'application, rubrique <em>Mes trajets › Services</em>).</li>
-    <li><strong>Un problème avec l'application ou un encart</strong>, une commune intéressée : <a href="mailto:contact@tuatam.fr?subject=Maillage">contact@tuatam.fr</a>.</li>
+    <li><strong>Un problème avec l'application ou un encart</strong>, une commune intéressée : <a href="mailto:{{CONTACT}}?subject={{NOM}}">{{CONTACT}}</a>.</li>
   </ul>
   <p class="muted">Page mise à jour le 19 novembre 2026.</p>
 </main>

@@ -4,18 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Espace mairie · Maillage</title>
+    <title>Espace mairie · {{NOM}}</title>
   </head>
   <body>
     <header class="m-top">
-      <span class="m-brand">Maillage <em>Espace mairie</em></span>
+      <span class="m-brand">{{NOM}} <em>Espace mairie</em></span>
       <span id="m-compte" class="m-compte"></span>
     </header>
     <main id="m-app" class="m-main" aria-live="polite">
       <p class="m-muted">Chargement…</p>
     </main>
     <p id="m-statut" class="m-statut" role="status" aria-live="polite"></p>
-    <footer class="m-foot"><a href="./a-propos.html">Mentions légales et confidentialité</a> · <a href="mailto:contact@tuatam.fr?subject=Espace%20mairie%20Maillage">contact@tuatam.fr</a></footer>
+    <footer class="m-foot"><a href="./a-propos.html">Mentions légales et confidentialité</a> · <a href="mailto:{{CONTACT}}?subject=Espace%20mairie%20Maillage">{{CONTACT}}</a></footer>
     <script type="module" src="/src/mairie.ts"></script>
   </body>
 </html>

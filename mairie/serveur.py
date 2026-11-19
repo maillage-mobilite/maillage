@@ -16,6 +16,7 @@ Configuration (variables d'environnement) :
   USAGE_LOG     journal de mesure d'usage nginx (usage.log)
   ORIGIN        adresse publique, ex. https://maillage.tuatam.fr (liens envoyés, contrôle des requêtes)
   MAIL          « msmtp » (relais du VPS) ou « console » (développement : le lien s'affiche dans le terminal)
+  BRAND_FILE    nom et contact du service (brand.json, relu à chaque envoi)   [défaut : ../brand.json]
   PORT          port d'écoute (défaut 8090)
 
 Usage : python3 -I mairie/serveur.py
@@ -46,6 +47,7 @@ ENCARTS_FILE = os.environ.get("ENCARTS_FILE", os.path.join(HERE, "..", "pipeline
 USAGE_LOG = os.environ.get("USAGE_LOG", "")
 ORIGIN = os.environ.get("ORIGIN", "http://localhost:5199").rstrip("/")
 MAIL = os.environ.get("MAIL", "console")
+BRAND_FILE = os.environ.get("BRAND_FILE", os.path.join(HERE, "..", "brand.json"))
 PORT = int(os.environ.get("PORT", "8090"))
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -309,16 +311,27 @@ def stats(slug, mois):
 
 # ------------------------------------------------------------------ e-mail
 
+def marque():
+    """Nom et contact du service, relus à chaque envoi : un changement de nom ne demande pas de redémarrage."""
+    try:
+        with open(BRAND_FILE, encoding="utf-8") as f:
+            b = json.load(f)
+        return b["nom"], b["contact"]
+    except (OSError, ValueError, KeyError):
+        return "Maillage", "contact@tuatam.fr"
+
+
 def envoyer_lien(email, nom, jeton):
     url = f"{ORIGIN}/mairie.html#jeton={jeton}"
     msg = EmailMessage()
     msg["To"] = email
-    msg["Subject"] = "Votre lien de connexion à l'espace mairie Maillage"
+    nom_service, contact = marque()
+    msg["Subject"] = f"Votre lien de connexion à l'espace mairie {nom_service}"
     msg.set_content(
-        f"Bonjour,\n\nPour ouvrir l'espace mairie Maillage ({nom}), cliquez sur ce lien :\n\n{url}\n\n"
+        f"Bonjour,\n\nPour ouvrir l'espace mairie {nom_service} ({nom}), cliquez sur ce lien :\n\n{url}\n\n"
         f"Il est valable {JETON_MIN} minutes et ne sert qu'une fois.\n"
         "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : rien ne change sans ce lien.\n\n"
-        "Maillage · contact@tuatam.fr\n")
+        f"{nom_service} · {contact}\n")
     if MAIL == "msmtp":
         subprocess.run(["msmtp", "-t"], input=msg.as_bytes(), check=True, timeout=60)
     else:

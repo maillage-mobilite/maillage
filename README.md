@@ -56,7 +56,7 @@ Service en ligne : [maillage.tuatam.fr](https://maillage.tuatam.fr) (sur invitat
 ### 🏛️ Pour les communes
 
 - 🧩 **Encarts** (`widget.html`) à coller sur le site de la mairie : formats complet, compact et « Comment venir » à un
-  lieu, aux couleurs de la commune, hauteur ajustée automatiquement. Démonstration : `public/demo-encarts.html`.
+  lieu, aux couleurs de la commune, hauteur ajustée automatiquement. Démonstration : `demo-encarts.html`.
 - ✉️ **Espace mairie** (`mairie.html`) : connexion par lien envoyé par e-mail, messages aux voyageurs, lieux utiles
   ajoutés ou masqués, statistiques de l'encart, générateur du code d'intégration.
 

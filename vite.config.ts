@@ -3,6 +3,15 @@ import preact from '@preact/preset-vite'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { resolve } from 'node:path'
+import marque from './brand.json'
+
+/** Nom et contact du service (brand.json) remplacés dans toutes les pages HTML : {{NOM}}, {{CONTACT}}. */
+function nomDuService(): Plugin {
+  return {
+    name: 'nom-du-service',
+    transformIndexHtml: { order: 'pre', handler: html => html.replaceAll('{{NOM}}', marque.nom).replaceAll('{{CONTACT}}', marque.contact) },
+  }
+}
 
 /**
  * Éditeur de tracés (editeur.html) : points d'accès du SEUL serveur de développement (`npm run dev`),
@@ -98,11 +107,12 @@ function editeurTraces(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [preact(), editeurTraces()],
+  plugins: [nomDuService(), preact(), editeurTraces()],
   base: './',
   // /api/mairie : serveur de l'espace mairie (npm run mairie, port 8090)
   server: { port: 5199, strictPort: true, proxy: { '/api/mairie': 'http://localhost:8090' } },
-  // trois pages publiées : l'application, l'encart « prochains départs » pour les sites des communes et l'espace mairie
+  // pages publiées : l'application, l'encart « prochains départs » pour les sites des communes, l'espace mairie,
+  // la page « À propos » et la démonstration des encarts
   // (editeur.html, l'éditeur de tracés, n'est servi que par le serveur de développement)
-  build: { rollupOptions: { input: { main: 'index.html', widget: 'widget.html', mairie: 'mairie.html' } } },
+  build: { rollupOptions: { input: { main: 'index.html', widget: 'widget.html', mairie: 'mairie.html', apropos: 'a-propos.html', demo: 'demo-encarts.html' } } },
 })

@@ -41,6 +41,7 @@ services:
       USAGE_LOG: /maillage/logs/usage.log
       ORIGIN: https://maillage.tuatam.fr
       MAIL: msmtp
+      BRAND_FILE: /maillage/depot/demonstrateur/brand.json
     volumes:
       - ./depot/demonstrateur/mairie:/app:ro
       - ./espace:/espace

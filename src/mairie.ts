@@ -1,3 +1,4 @@
+import { BRAND } from './brand'
 // Espace mairie : messages d'info trafic, lieux utiles, statistiques et code de l'encart.
 // Parle au serveur mairie/serveur.py (/api/mairie/…). Pas de bibliothèque : DOM et fetch.
 import './mairie.css'
@@ -62,7 +63,7 @@ function connexion(info?: string) {
       await api('/connexion', { body: { email } })
       app.innerHTML = `<section class="m-card m-login"><h1>Vérifiez votre messagerie</h1>
         <p>Si l'adresse <strong>${esc(email)}</strong> est enregistrée, un lien de connexion vient de lui être envoyé. Il est valable 15 minutes.</p>
-        <p class="m-small m-muted">Rien reçu après quelques minutes ? Regardez dans les indésirables, puis <a href="./mairie.html">recommencez</a> ou écrivez à contact@tuatam.fr.</p></section>`
+        <p class="m-small m-muted">Rien reçu après quelques minutes ? Regardez dans les indésirables, puis <a href="./mairie.html">recommencez</a> ou écrivez à ${BRAND.contact}.</p></section>`
     } catch (err) { statut((err as Error).message) }
   }
 }
@@ -81,7 +82,7 @@ async function demarrer() {
     try { await api('/session', { body: { jeton: m[1] } }) } catch (e) { return connexion((e as Error).message) }
   }
   try { moi = await api<Moi>('/moi') } catch { return }
-  if (!moi.communes.length) { app.innerHTML = '<p>Aucune commune n\'est rattachée à ce compte. Écrivez à contact@tuatam.fr.</p>'; return }
+  if (!moi.communes.length) { app.innerHTML = `<p>Aucune commune n'est rattachée à ce compte. Écrivez à ${esc(BRAND.contact)}.</p>`; return }
   const choix = localStorage.getItem('maillage-mairie-commune')
   commune = moi.communes.find(c => c.slug === choix) ?? moi.communes[0]
   compteEl.innerHTML = `
@@ -317,7 +318,7 @@ async function vueEncart(vue: HTMLElement) {
     <h2>Code à copier</h2>
     <pre class="m-code" id="code"></pre>
     <div class="m-actions"><button class="m-btn primary" id="b-copier">Copier le code</button></div>
-    <p class="m-small m-muted">Plusieurs encarts sur une même page : le script final n'est à coller qu'une fois. Votre site doit être autorisé à afficher l'encart : écrivez à contact@tuatam.fr si l'aperçu fonctionne ici mais pas chez vous.</p>`
+    <p class="m-small m-muted">Plusieurs encarts sur une même page : le script final n'est à coller qu'une fois. Votre site doit être autorisé à afficher l'encart : écrivez à ${BRAND.contact} si l'aperçu fonctionne ici mais pas chez vous.</p>`
   const maj = () => {
     const fmt = ($<HTMLInputElement>('input[name=fmt]:checked', vue)).value
     $('#c-lieu', vue).hidden = fmt !== 'venir'
