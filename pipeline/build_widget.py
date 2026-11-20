@@ -19,6 +19,7 @@ def main():
     ap.add_argument("--slug", required=True)
     ap.add_argument("--name", required=True, help="nom de la commune affiché dans l'encart")
     ap.add_argument("--places", nargs="+", required=True, help="noms exacts des pôles d'arrêt")
+    ap.add_argument("--commune", help="commune OpenStreetMap des lieux, si elle diffère du nom affiché (encart de démonstration)")
     args = ap.parse_args()
 
     net = json.load(open(os.path.join(args.datadir, "network.json"), encoding="utf-8"))
@@ -80,7 +81,7 @@ def main():
     pois_path = os.path.join(args.datadir, "pois.json")
     if os.path.exists(pois_path):
         pois = json.load(open(pois_path, encoding="utf-8"))
-        data["lieux"] = [[p[0], p[1], p[2], p[4], p[5]] for p in pois["pois"] if p[3] == args.name]
+        data["lieux"] = [[p[0], p[1], p[2], p[4], p[5]] for p in pois["pois"] if p[3] == (args.commune or args.name)]
     path = os.path.join(args.datadir, f"widget-{args.slug}.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, separators=(",", ":"))

@@ -11,5 +11,6 @@ with open(os.path.join(here, "encarts.json"), encoding="utf-8") as fh:
     encarts = json.load(fh)["encarts"]
 for e in encarts:
     subprocess.run([sys.executable, "-I", os.path.join(here, "build_widget.py"), os.path.join(datadir, e["territoire"]),
-                    "--slug", e["slug"], "--name", e["nom"], "--places", *e["poles"]], check=True)
+                    "--slug", e["slug"], "--name", e["nom"], "--places", *e["poles"],
+                    *(["--commune", e["commune_osm"]] if e.get("commune_osm") else [])], check=True)
 print(f"{len(encarts)} encart(s) construit(s)")

@@ -35,7 +35,7 @@
   <nav class="tabs" role="tablist" aria-label="Pages d'exemple">
     <button role="tab" aria-selected="true" data-page="accueil">Accueil · bandeau compact</button>
     <button role="tab" aria-selected="false" data-page="transports">Transports publics · encart complet</button>
-    <button role="tab" aria-selected="false" data-page="mairie">La mairie · « Comment venir »</button>
+    <button role="tab" aria-selected="false" data-page="mairie">L'école · « Comment venir »</button>
   </nav>
   <main>
     <p class="note">Démonstration : les horaires sont réels (données ouvertes d'un territoire de démonstration), le décor de la page est fictif.
@@ -52,7 +52,7 @@
         <aside>
           <p class="label">Colonne latérale</p>
           <iframe data-maillage="demo-compact" title="Prochains bus de la commune" style="height:170px"
-            data-src="./widget.html?reseau=paysdegex&commune=ornex&format=compact&id=demo-compact"></iframe>
+            data-src="./widget.html?reseau=coqueligo&commune=demo&format=compact&id=demo-compact"></iframe>
         </aside>
       </div>
     </section>
@@ -61,14 +61,14 @@
       <h1>Transports publics</h1>
       <p>Prochains départs en direct aux arrêts de la commune :</p>
       <iframe data-maillage="demo-complet" title="Prochains départs des bus aux arrêts de la commune" style="height:560px;max-width:720px"
-        data-src="./widget.html?reseau=paysdegex&commune=ornex&id=demo-complet"></iframe>
+        data-src="./widget.html?reseau=coqueligo&commune=demo&id=demo-complet"></iframe>
     </section>
 
     <section data-page="mairie" hidden>
       <div class="cols">
         <div>
-          <h1>La mairie</h1>
-          <p>Horaires d'ouverture, services, contacts…</p>
+          <h1>L'école élémentaire</h1>
+          <p>Inscriptions, horaires, cantine…</p>
           <div class="placeholder" aria-hidden="true"></div>
           <div class="swatches">Couleur de la commune :
             <button style="background:#0f3d3e" data-couleur="" aria-label="Couleur par défaut"></button>
@@ -79,8 +79,8 @@
         </div>
         <aside>
           <p class="label">Comment venir</p>
-          <iframe data-maillage="demo-venir" title="Venir en bus à la mairie" style="height:420px"
-            data-src="./widget.html?reseau=paysdegex&commune=ornex&format=venir&lieu=Mairie%20d'Ornex&id=demo-venir"></iframe>
+          <iframe data-maillage="demo-venir" title="Venir en bus à l'école" style="height:420px"
+            data-src="./widget.html?reseau=coqueligo&commune=demo&format=venir&lieu=%C3%89cole%20%C3%A9l%C3%A9mentaire%20Cordeliers&id=demo-venir"></iframe>
         </aside>
       </div>
     </section>

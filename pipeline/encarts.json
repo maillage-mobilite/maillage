@@ -1,6 +1,7 @@
 {
- "_note": "Encarts des communes : un par commune. Construits par pipeline/build_encarts.py après chaque mise à jour des données.",
+ "_note": "Encarts des communes : un par commune. Construits par pipeline/build_encarts.py après chaque mise à jour des données. « demo » sert à demo-encarts.html : nom affiché fictif, lieux de commune_osm.",
  "encarts": [
-  { "territoire": "paysdegex", "slug": "ornex", "nom": "Ornex", "poles": ["Ornex, Fruitière", "Ornex, Les Roussets", "Ornex, Prénépla"] }
+  {"territoire": "paysdegex", "slug": "ornex", "nom": "Ornex", "poles": ["Ornex, Fruitière", "Ornex, Les Roussets", "Ornex, Prénépla"]},
+  {"territoire": "coqueligo", "slug": "demo", "nom": "Ma Commune", "commune_osm": "Annonay", "poles": ["Cordeliers", "Liberte", "Theatre"]}
  ]
 }
