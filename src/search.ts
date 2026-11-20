@@ -42,9 +42,11 @@ export function searchLocal(net: Network, q: string, near?: { lat: number; lon: 
     const lines = distinctRoutes(net, [...new Set(st.links.flatMap(([pl]) => net.places[pl].routes))]).slice(0, 5).map(r => net.routes[r].short).join(' · ')
     out.push({ kind: 'station', label: stationLabel(st.name), detail: `Gare SNCF · correspondance ${lines}`, lat: st.lat, lon: st.lon, id: st.i, score: -0.5 })
   }
+  // plusieurs réseaux de bus sur le territoire : le nom du réseau distingue deux lignes de même numéro
+  const multi = new Set(net.routes.filter(r => r.kind !== 'train').map(r => r.agency)).size > 1
   for (const r of net.routes) {
-    const n = normalize(`${r.short} ${r.long}`)
-    if (words.every(w => n.includes(w))) out.push({ kind: 'route', label: r.kind === 'train' ? `${r.short} ${r.long}` : `Ligne ${r.short}`, detail: r.kind === 'train' ? (r.short === 'TER' ? 'Train régional SNCF' : `Train · ${r.agency}`) : r.long, id: r.i, score: normalize(r.short) === nq ? -1 : 0.5 })
+    const n = normalize(`${r.short} ${r.long}${multi ? ' ' + r.agency : ''}`)
+    if (words.every(w => n.includes(w))) out.push({ kind: 'route', label: r.kind === 'train' ? `${r.short} ${r.long}` : `Ligne ${r.short}`, detail: r.kind === 'train' ? (r.short === 'TER' ? 'Train régional SNCF' : `Train · ${r.agency}`) : multi ? `${r.agency} · ${r.long}` : r.long, id: r.i, score: normalize(r.short) === nq ? -1 : 0.5 })
   }
   return out.sort((a, b) => a.score - b.score).slice(0, 6)
 }

@@ -148,7 +148,8 @@ def main():
     # pôles d'arrêt du réseau local ([nom, lat, lon, flux]) : les arrêts des seuls cars Région ou trains,
     # parfois à 50 km (Annecy, Bellegarde), élargiraient l'emprise sans apporter de destinations de proximité
     LOCAL = {"urbain", "tad", "scolaire"}
-    places = [(p[0], p[1], p[2]) for p in net["places"] if LOCAL & set(p[3])]
+    kind_of = {f["id"]: f["kind"] for f in net.get("feeds", [])}  # identifiant de flux → type de ligne
+    places = [(p[0], p[1], p[2]) for p in net["places"] if LOCAL & {kind_of.get(f, f) for f in p[3]}]
     lats, lons = [p[1] for p in places], [p[2] for p in places]
     m = 0.012
     bbox = f"{min(lats) - m},{min(lons) - m},{max(lats) + m},{max(lons) + m}"

@@ -94,7 +94,11 @@ export function parseNetwork(raw: any): Network {
     ? { i, short: r[6] ?? 'TER', long: r[6] ? r[1].replace(/\s+-\s+/g, ' – ') : trainLong(r[1]), code: r[0], color: '#' + r[2], text: '#' + r[3], kind: r[4], agency: r[5] }
     : { i, short: r[0], long: r[1], code: r[0], color: '#' + r[2], text: '#' + r[3], kind: r[4], agency: r[5] })
   const stops: Stop[] = raw.stops.map((s: any[], i: number) => ({ i, name: s[0], lat: s[1], lon: s[2], place: s[3], feed: s[4] }))
-  const places: Place[] = raw.places.map((p: any[], i: number) => ({ i, name: p[0], lat: p[1], lon: p[2], feeds: p[3], stops: [], routes: [], stations: [] }))
+  // p[3] : identifiants des flux de l'arrêt. Un territoire peut avoir plusieurs flux du même type
+  // (deux réseaux urbains) : on garde le type de ligne, seul utilisé par la carte et la recherche.
+  const kindOf: Record<string, Kind> = Object.fromEntries((raw.feeds ?? []).map((f: any) => [f.id, f.kind]))
+  const kinds = (ids: string[]) => [...new Set(ids.map(f => kindOf[f] ?? (f as Kind)))]
+  const places: Place[] = raw.places.map((p: any[], i: number) => ({ i, name: p[0], lat: p[1], lon: p[2], feeds: kinds(p[3]), stops: [], routes: [], stations: [] }))
   const stations: Station[] = (raw.stations ?? []).map((x: any[], i: number) => ({ i, name: x[0], lat: x[1], lon: x[2], uic: x[3], segment: x[4], links: x[5] }))
   for (const st of stations) for (const [pl, m] of st.links) places[pl].stations.push([st.i, m])
   const trips: Trip[] = raw.trips.map((t: any[], i: number) => ({ i, route: t[0], service: t[1], headsign: t[2], dir: t[3], stops: t[4], arr: t[5], dep: t[6], booking: !!t[7] }))

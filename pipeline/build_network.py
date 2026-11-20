@@ -1107,7 +1107,8 @@ def main():
                 continue
             if excl_short and re.fullmatch(excl_short, (r.get("route_short_name") or "").strip()):
                 continue
-            raw_routes[r["route_id"]] = (r, ag)
+            # « network » : nom du réseau connu des voyageurs (Envibus), à la place de l'exploitant du flux (Keolis…)
+            raw_routes[r["route_id"]] = (r, feed.get("network") or ag)
 
         raw_trips = {}
         for t in g.rows("trips.txt"):
