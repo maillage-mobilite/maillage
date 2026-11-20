@@ -10,6 +10,7 @@
     "data:paysdegex": "python3 -I pipeline/build_network.py pipeline/tenants/paysdegex.json --cache .cache --out public/data/paysdegex && npm run data:pois -- public/data/paysdegex && npm run data:encarts",
     "data:encarts": "python3 -I pipeline/build_encarts.py public/data",
     "dev": "vite",
+    "tempsreel": "DONNEES_DIR=public/data python3 -I tempsreel/serveur.py",
     "mairie": "MAIL=smtp ESPACE_DIR=.cache/espace CONTENUS_DIR=public/contenus python3 -I mairie/serveur.py",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",

@@ -71,6 +71,8 @@ export interface Network {
   trains: Record<number, TrainRow[]>
   trainServices: string[]
   trainsSource: { name: string; licence: string; page: string } | null
+  /** Flux dont le temps réel est servi par le relais (/api/tr/<territoire>.json). */
+  realtime: string[]
   routes: Route[]
   stops: Stop[]
   places: Place[]
@@ -127,7 +129,7 @@ export function parseNetwork(raw: any): Network {
     trains: Object.fromEntries(Object.entries(raw.trains ?? {}).map(([k, rows]: [string, any]) => [Number(k), rows.map((r: any[]) => ({
       dep: r[0], arr: r[1], svc: r[2], mode: r[3], line: r[4], number: r[5], from: r[6], to: r[7], noPickup: !!r[8], noDrop: !!r[9],
     }))])),
-    trainServices: raw.train_services ?? [], trainsSource: raw.trains_source ?? null, routes, stops, places, trips, services: raw.services, foot, tripsAt,
+    trainServices: raw.train_services ?? [], trainsSource: raw.trains_source ?? null, realtime: raw.realtime ?? [], routes, stops, places, trips, services: raw.services, foot, tripsAt,
   }
 }
 

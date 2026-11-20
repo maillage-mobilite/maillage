@@ -287,7 +287,7 @@ function Results({ net, now, res, at, fares, onOpen }: { net: Network; now: Now;
           </li>
         )}
       </ul>
-      <TheoNotice />
+      <TheoNotice net={net} />
     </section>
   )
 }
@@ -374,7 +374,7 @@ export function JourneyDetail({ net, now, journey, date, fares, onBack, onBook }
         <li class="leg end"><span class="leg-time">{fmtHM(journey.arr)}</span><span class="leg-icon"><Icon name="check" size={18} /></span><div><strong>Arrivée</strong></div></li>
       </ol>
       <ArrivalTrains net={net} now={now} journey={journey} date={date} />
-      <TheoNotice />
+      <TheoNotice net={net} />
     </div>
   )
 }

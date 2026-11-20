@@ -61,6 +61,8 @@ Service en ligne : [maillage.tuatam.fr](https://maillage.tuatam.fr) (sur invitat
 - 🗺️ **Carte** : tracés recalés sur la chaussée et les voies ferrées, sens de circulation, gares, lieux utiles
   OpenStreetMap, fonds plan, vue aérienne et vélo.
 - 🚆 **Gares** : départs et arrivées des trains en correspondance, avec le temps réel SNCF.
+- ⏱️ **Temps réel des bus** quand le réseau le publie (GTFS-RT) : retards et suppressions aux arrêts, par un relais
+  du serveur qui ne garde que les courses du territoire.
 - ⭐ **Mes lieux** : domicile, travail, école et favoris enregistrés sur l'appareil, avec le prochain trajet vers chacun.
 - ⚠️ **Info trafic** : messages publiés par les communes, alertes d'expiration des données.
 
@@ -118,10 +120,11 @@ src/map.tsx                      MapLibre GL 5 + fond OpenFreeMap
 src/views/*                      écrans (Preact)
 src/widget.ts                    encarts pour les sites de communes
 mairie/serveur.py                espace mairie (connexion, messages, lieux, statistiques)
+tempsreel/serveur.py             relais du temps réel des bus (GTFS-RT filtré par territoire)
 deploy/                          publication sur un VPS (Docker, nginx, systemd)
 ```
 
-Pas de serveur applicatif pour les voyageurs : tout tourne dans le navigateur, ce qui est possible parce qu'un petit réseau, trains en correspondance compris, tient en quelques Mo. Seul l'espace mairie a un petit serveur (`mairie/serveur.py`, Python sans dépendance), dont les publications deviennent des fichiers statiques.
+Pas de serveur applicatif pour les voyageurs : tout tourne dans le navigateur, ce qui est possible parce qu'un petit réseau, trains en correspondance compris, tient en quelques Mo. Seuls l'espace mairie (`mairie/serveur.py`, dont les publications deviennent des fichiers statiques) et le relais du temps réel des bus (`tempsreel/serveur.py`) ont un petit serveur, en Python sans dépendance.
 
 <details>
 <summary>Ce que fait le pipeline de données</summary>

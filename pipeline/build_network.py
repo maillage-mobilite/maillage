@@ -1189,7 +1189,7 @@ def main():
                     continue
                 seen.add(x["stop_sequence"])
                 seq.append(x)
-            arr, dep, sids = [], [], []
+            arr, dep, sids, seqs = [], [], [], []
             prev = None
             pickup_flag = None
             for x in seq:
@@ -1206,7 +1206,7 @@ def main():
                     a = prev
                     d = max(d, a)
                 prev = d
-                arr.append(a); dep.append(d); sids.append(f"{fid}:{x['stop_id']}")
+                arr.append(a); dep.append(d); sids.append(f"{fid}:{x['stop_id']}"); seqs.append(int(x["stop_sequence"]))
                 if x.get("pickup_type") == "2":
                     pickup_flag = "phone"
             if len(sids) < 2:
@@ -1220,7 +1220,9 @@ def main():
                 shapes_needed[fid].add(shape)
             trips.append({"route": rid, "service": svc, "headsign": nice_name(t.get("trip_headsign") or ""),
                           "dir": t.get("direction_id") or "0", "stops": sids, "arr": arr, "dep": dep,
-                          "shape": f"{fid}:{shape}" if shape else None, "booking": pickup_flag})
+                          "shape": f"{fid}:{shape}" if shape else None, "booking": pickup_flag,
+                          # temps réel : identifiant de la course et numéros d'ordre des arrêts dans le flux d'origine
+                          "gid": tid, "seqs": seqs})
             used_stops.update(sids)
             used_routes.add(rid)
 
@@ -1464,9 +1466,27 @@ def main():
         "stations": [[x["name"], round(x["lat"], 6), round(x["lon"], 6), x["uic"], x["segment"], x["links"]] for x in stations_out],
         "trains": {str(k): v for k, v in trains_out.items()},
         "train_services": train_svcs,
+        # temps réel des bus : relais /api/tr/<territoire>.json (tempsreel/serveur.py), index dans temps-reel.json
+        "realtime": sorted(f["id"] for f in cfg["feeds"] if f.get("realtime")),
         "trains_source": ({"name": rail_tt.get("name"), "licence": rail_tt.get("licence"), "page": rail_tt.get("page")} if rail_tt else None),
         "stations_source": ({"name": rail.get("name"), "licence": rail.get("licence"), "page": rail.get("page")} if rail else None),
     }
+    # index du temps réel (lu par le relais tempsreel/serveur.py, jamais par l'application) :
+    # identifiant de course d'origine → [index de la course, identifiants d'arrêt d'origine, numéros d'ordre]
+    rt_feeds = {f["id"]: f["realtime"] for f in cfg["feeds"] if f.get("realtime")}
+    rt_path = os.path.join(args.out, "temps-reel.json")
+    if rt_feeds:
+        rt_trips = {fid: {} for fid in rt_feeds}
+        for k, t in enumerate(trips):
+            fid = t["route"].split(":", 1)[0]
+            if fid in rt_trips:
+                rt_trips[fid][t["gid"]] = [k, [s.split(":", 1)[1] for s in t["stops"]], t["seqs"]]
+        with open(rt_path, "w", encoding="utf-8") as fh:
+            json.dump({"feeds": rt_feeds, "trips": rt_trips}, fh, ensure_ascii=False, separators=(",", ":"))
+        log("temps réel : " + ", ".join(f"{fid} {len(v)} courses" for fid, v in rt_trips.items()))
+    elif os.path.exists(rt_path):
+        os.remove(rt_path)
+
     # tracés par ligne (dédupliqués)
     feats, seen, reversed_shapes = [], set(), 0
     for t in trips:

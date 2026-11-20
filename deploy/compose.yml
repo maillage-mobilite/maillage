@@ -52,6 +52,26 @@ services:
       - .:/maillage:ro
       - /srv/sites/_mail/msmtprc:/run/secrets-msmtp/msmtprc:ro
     networks: [interne]
+  # Relais du temps réel des bus (tempsreel/serveur.py) : joignable seulement par nginx (/api/tr/).
+  # Même image que l'espace mairie (Python, certificats, fuseau horaire) ; sortie Internet vers les flux des réseaux.
+  tempsreel:
+    build: ./depot/demonstrateur/mairie
+    image: maillage-mairie
+    container_name: maillage-tempsreel
+    restart: unless-stopped
+    entrypoint: ["python3", "-I", "/app/serveur.py"]
+    user: "1000:1000"
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+    environment:
+      DONNEES_DIR: /maillage/donnees
+      HOST: 0.0.0.0
+    volumes:
+      - ./depot/demonstrateur/tempsreel:/app:ro
+      # index temps-reel.json et network.json de chaque territoire (dossier parent : donnees/ est renommé à chaque mise à jour)
+      - .:/maillage:ro
+    networks: [interne]
 networks:
   coolify:
     external: true

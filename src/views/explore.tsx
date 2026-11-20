@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import {
   Network, Kind, KIND_LABEL, useMessages, stationLabel, departures, nearestPlaces, tripsOfRoute, referenceTrip, fmtHM, fmtDay, addDays, distance, inWindow, fmtDuration, routeKey, type Route, type Trip
 } from '../net'
-import { Empty, Header, Icon, MairieMessages, Pill, ReportLink, TheoNotice, When, usePreview } from '../ui'
+import { BusWhen, Empty, Header, Icon, MairieMessages, Pill, ReportLink, TheoNotice, usePreview } from '../ui'
+import { busStatus, useBusRealtime } from '../busRealtime'
 import { TrainBoard } from '../trains'
 import { plan, type Journey } from '../router'
 import { LOCATION_META, type SavedLocation } from '../store'
@@ -150,7 +151,7 @@ export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch, onGoLo
           </div>
         ))}
       </section>
-      <TheoNotice />
+      <TheoNotice net={net} live />
     </div>
   )
 }
@@ -158,6 +159,7 @@ export function Explore({ net, now, pos, fav, onPlace, onRoute, onSearch, onGoLo
 function PlaceCard({ net, place, now, dist, onOpen }: { net: Network; place: number; now: Now; dist?: number; onOpen: (i: number) => void }) {
   const p = net.places[place]
   const groups = useMemo(() => grouped(net, p.stops, now, 30).slice(0, 4), [net, place, now.sec, now.date])
+  const rt = useBusRealtime(net)
   return (
     <button class="card place-card" onClick={() => onOpen(place)}>
       <div class="card-head">
@@ -170,7 +172,7 @@ function PlaceCard({ net, place, now, dist, onOpen }: { net: Network; place: num
           <Pill route={net.routes[g.route]} small />
           <span class="dep-head">{g.headsign}</span>
           {g.booking && <span class="badge-tad" title="Sur réservation">Résa</span>}
-          <span class="dep-times">{g.items.map((d, k) => <Fragment key={k}>{k > 0 && <span class="then">puis</span>}<When abs={d.abs} now={now} theoretical={k === 0} /></Fragment>)}</span>
+          <span class="dep-times">{g.items.map((d, k) => <Fragment key={k}>{k > 0 && <span class="then">puis</span>}<BusWhen st={busStatus(rt, d)} abs={d.abs} now={now} theoretical={k === 0 || busStatus(rt, g.items[0]) != null} /></Fragment>)}</span>
         </DepRow>
       ))}
     </button>
@@ -185,6 +187,7 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
   const [more, setMore] = useState(false)
   const [allLines, setAllLines] = useState(false)
   const deps = useMemo(() => departures(net, p.stops, now, { limit: 30, horizonDays: 2 }), [net, id, now.sec, now.date])
+  const rt = useBusRealtime(net)
   const shown = more ? deps : deps.slice(0, 8)
   const isFav = fav.places.includes(p.name)
   const d = distance(pos.lat, pos.lon, p.lat, p.lon)
@@ -221,7 +224,7 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
                   <DepLineButton route={r.i} onRoute={rr => onRoute(rr, id, x.trip.dir)}>
                     <Pill route={r} small />
                     <span class="dep-head">{x.trip.headsign}{x.trip.booking && <span class="badge-tad">Sur réservation</span>}</span>
-                    <When abs={x.abs} now={now} />
+                    <BusWhen st={busStatus(rt, x)} abs={x.abs} now={now} />
                   </DepLineButton>
                 </li>
               </Fragment>
@@ -249,7 +252,7 @@ export function PlaceView({ net, id, now, pos, fav, toggleFav, onBack, onRoute, 
       </section>
       <ReportLink email={net.tenant.links.email} subject={`Signalement — arrêt ${p.name}`}
         context={`Arrêt : ${p.name} (${p.lat.toFixed(5)}, ${p.lon.toFixed(5)})\nLignes : ${p.routes.map(r => net.routes[r].kind === 'train' ? `TER ${net.routes[r].long}` : net.routes[r].short).join(', ')}`} />
-      <TheoNotice />
+      <TheoNotice net={net} live />
     </div>
   )
 }
@@ -353,7 +356,7 @@ export function RouteView({ net, id, now, fav, toggleFav, onBack, onPlace, fromP
       )}
       <ReportLink email={net.tenant.links.email} subject={`Signalement — ligne ${r.short}`}
         context={`Ligne : ${r.short} — ${r.long}\nSens : ${dirLabel(dir)}\nArrêt consulté : ${net.places[at]?.name ?? '—'}\nDate : ${date}`} />
-      <TheoNotice />
+      <TheoNotice net={net} />
     </div>
   )
 }

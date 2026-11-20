@@ -109,8 +109,8 @@ function editeurTraces(): Plugin {
 export default defineConfig({
   plugins: [nomDuService(), preact(), editeurTraces()],
   base: './',
-  // /api/mairie : serveur de l'espace mairie (npm run mairie, port 8090)
-  server: { port: 5199, strictPort: true, proxy: { '/api/mairie': 'http://localhost:8090' } },
+  // /api/mairie : serveur de l'espace mairie (npm run mairie, port 8090) ; /api/tr : relais temps réel (npm run tempsreel, port 8091)
+  server: { port: 5199, strictPort: true, proxy: { '/api/mairie': 'http://localhost:8090', '/api/tr': 'http://localhost:8091' } },
   // pages publiées : l'application, l'encart « prochains départs » pour les sites des communes, l'espace mairie,
   // la page « À propos » et la démonstration des encarts
   // (editeur.html, l'éditeur de tracés, n'est servi que par le serveur de développement)

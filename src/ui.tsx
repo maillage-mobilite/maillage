@@ -3,6 +3,7 @@ import { BRAND } from './brand'
 import { createContext, type ComponentChildren } from 'preact'
 import { useContext } from 'preact/hooks'
 import { Network, Route, fmtHM, fmtDay, addDays, parisNow, type MairieMessage } from './net'
+import type { BusStatus } from './busRealtime'
 
 const PATHS: Record<string, string> = {
   map: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Zm0 0v14m6-12v14',
@@ -81,6 +82,22 @@ export function When({ abs, now, theoretical = true }: { abs: number; now: { dat
   )
 }
 
+/** Heure d'un départ de bus, corrigée par le temps réel s'il est connu (sinon horaire théorique). */
+export function BusWhen({ st, abs, now, theoretical = true }: { st: BusStatus | null; abs: number; now: { date: string; sec: number }; theoretical?: boolean }) {
+  if (st?.kind === 'canceled') return <span class="when-rt"><s class="when">{fmtHM(abs)}</s> <small class="rt rt-bad">Supprimé</small></span>
+  if (st?.kind === 'skipped') return <span class="when-rt"><s class="when">{fmtHM(abs)}</s> <small class="rt rt-bad">Ne s'arrête pas</small></span>
+  if (st?.kind === 'live') {
+    const late = Math.round(st.delay / 60)
+    return (
+      <span class="when-rt">
+        <When abs={abs + st.delay} now={now} theoretical={false} />
+        {late >= 1 && <small class="rt rt-late" aria-label={`retard de ${late} minute${late > 1 ? 's' : ''}`}> +{late} min</small>}
+      </span>
+    )
+  }
+  return <When abs={abs} now={now} theoretical={theoretical} />
+}
+
 export function Header({ title, onBack, right, sub }: { title: ComponentChildren; onBack?: () => void; right?: ComponentChildren; sub?: ComponentChildren }) {
   return (
     <div class="sheet-header">
@@ -114,7 +131,20 @@ export function ReportLink({ email, subject, context }: { email?: string; subjec
   )
 }
 
-export function TheoNotice() {
+/** Note sur les horaires. `live` : l'écran affiche le temps réel des bus (fiches et cartes d'arrêt). */
+export function TheoNotice({ net, live = false }: { net?: Network; live?: boolean }) {
+  const names = net?.feeds.filter(f => net.realtime.includes(f.id)).map(f => f.name) ?? []
+  if (names.length && !live) return (
+    <p class="notice">
+      <span class="dot-theo">○</span> Horaires théoriques : le calcul d'itinéraire ne tient pas encore compte des retards annoncés en temps réel.
+    </p>
+  )
+  if (names.length) return (
+    <p class="notice">
+      Les heures sans <span class="dot-theo">○</span> tiennent compte des retards annoncés en temps réel ({names.join(', ')}).
+      Les autres sont les horaires théoriques publiés par le réseau.
+    </p>
+  )
   return (
     <p class="notice">
       <span class="dot-theo">○</span> Horaires théoriques publiés par le réseau, sans les retards : le réseau ne publie pas encore son temps réel en open data.

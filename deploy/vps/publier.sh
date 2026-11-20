@@ -149,8 +149,16 @@ fi
 mairie=$(git rev-parse --short HEAD:demonstrateur/mairie 2>/dev/null || true)
 if [ -n "$mairie" ] && [ "$(cat "$BASE/mairie.version" 2>/dev/null)" != "$mairie" ] && [ -n "$(docker ps -q -f name=^maillage-mairie$)" ]; then
   log "Espace mairie modifié : redémarrage du service"
-  (cd "$BASE" && docker compose -f compose.yml -f compose.domain.yml up -d --build --quiet-pull mairie)
+  # « up » ne recrée pas un conteneur inchangé : le code monté ne serait pas relu sans redémarrage
+  (cd "$BASE" && docker compose -f compose.yml -f compose.domain.yml up -d --build --quiet-pull mairie) && docker restart maillage-mairie >/dev/null
   printf '%s\n' "$mairie" > "$BASE/mairie.version"
+fi
+# relais du temps réel : même principe
+tr=$(git rev-parse --short HEAD:demonstrateur/tempsreel 2>/dev/null || true)
+if [ -n "$tr" ] && [ "$(cat "$BASE/tempsreel.version" 2>/dev/null)" != "$tr" ] && [ -n "$(docker ps -q -f name=^maillage-tempsreel$)" ]; then
+  log "Relais temps réel modifié : redémarrage du service"
+  (cd "$BASE" && docker compose -f compose.yml -f compose.domain.yml up -d --quiet-pull tempsreel) && docker restart maillage-tempsreel >/dev/null
+  printf '%s\n' "$tr" > "$BASE/tempsreel.version"
 fi
 
 if [ "${1:-}" = "--quotidien" ]; then
